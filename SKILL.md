@@ -141,6 +141,7 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
 6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then only say `token hazır`; do not print a masked token unless the user asks for diagnostics.
 7. Install dependencies, start the studio, run a simple health check, and explain the local/VPS URL in one short summary.
+8. End the turn after the setup summary. Do not ask follow-up questions, do not start a recording, and do not keep probing. Wait for the user's next message.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
