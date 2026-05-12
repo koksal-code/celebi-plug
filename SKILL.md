@@ -136,7 +136,7 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 
 1. Clone the repo, or if it already exists, update it with `git pull --ff-only` and report the active commit hash.
 2. Read `README.md`, `install.md`, `AGENTS.md`, and `SKILL.md`.
-3. After reading the files, show the CELEBI-PLUG ASCII banner below and one short setup sentence.
+3. After reading the files, print the exact plain ASCII banner below and one short setup sentence. Do not generate a figlet-style banner; it can wrap or lose characters in agent terminals.
 4. Ask for the Mapbox public token directly: "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım."
 5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
 6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then only say `token hazır`; do not print a masked token unless the user asks for diagnostics.
@@ -144,20 +144,20 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
-- On first setup, show the ASCII banner only after the required repo docs are read.
+- On first setup, show the exact ASCII banner below only after the required repo docs are read.
 - Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
 - Keep token talk minimal. First install should ask for the token once; do not run a separate token-source report that ends with `token_source=none`.
 - Never print the raw token. Prefer saying `token hazır`; use a masked form only for troubleshooting.
 - If a valid token is already present from a previous run, simply say `token hazır` and continue.
 
-Suggested banner:
+Exact banner:
 
 ```text
-  ____  _____  _      _____  ____   ___           ____   _      _   _   ____  
- / ___|| ____|| |    | ____|| __ ) |_ _|         |  _ \ | |    | | | | / ___| 
-| |    |  _|  | |    |  _|  |  _ \  | |   _____  | |_) || |    | | | || |  _  
-| |___ | |___ | |___ | |___ | |_) | | |  |_____| |  __/ | |___ | |_| || |_| | 
- \____||_____||_____||_____||____/ |___|         |_|    |_____| \___/  \____| 
++------------------------------------------------------------+
+|                         CELEBI-PLUG                        |
+|                     GEO-CINEMA STUDIO                      |
+|                 MAPBOX 3D DRONE RECORDER                   |
++------------------------------------------------------------+
 ```
 
 **VPS `/record` run notes**:
