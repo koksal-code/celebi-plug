@@ -159,6 +159,10 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 - Keep token talk minimal. In first install, ask for token once and continue.
 - Keep token output minimal and safe: report `token hazır`.
 - If a valid token is already present from a previous run, simply say `token hazır` and continue.
+- Terminal command hygiene:
+  - Write shell commands in plain ASCII only.
+  - Put Turkish status text in chat messages, not inside shell command strings.
+  - Prefer one command per step; avoid long chained commands with `&&` for routine checks.
 
 Exact banner:
 
