@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CELEBIPLUG</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,75..125,100..900;1,75..125,100..900&family=Geist:wght@100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap"
+      rel="stylesheet"
+    />
+
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="scanline" aria-hidden="true"></div>
+
+    <!-- =========================== WELCOME =========================== -->
+    <section id="welcome-screen" class="welcome">
+      <div class="welcome-bg" aria-hidden="true">
+        <svg viewBox="0 0 800 800" class="globe" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="globe-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(255,159,28,0.10)" />
+              <stop offset="60%" stop-color="rgba(255,159,28,0.02)" />
+              <stop offset="100%" stop-color="rgba(255,159,28,0)" />
+            </radialGradient>
+          </defs>
+          <circle cx="400" cy="400" r="320" fill="url(#globe-glow)" />
+          <g fill="none" stroke="rgba(243,238,229,0.10)" stroke-width="0.6">
+            <circle cx="400" cy="400" r="320" />
+            <ellipse cx="400" cy="400" rx="320" ry="80" />
+            <ellipse cx="400" cy="400" rx="320" ry="160" />
+            <ellipse cx="400" cy="400" rx="320" ry="240" />
+            <ellipse cx="400" cy="400" rx="80" ry="320" />
+            <ellipse cx="400" cy="400" rx="160" ry="320" />
+            <ellipse cx="400" cy="400" rx="240" ry="320" />
+            <line x1="80" y1="400" x2="720" y2="400" />
+            <line x1="400" y1="80" x2="400" y2="720" />
+          </g>
+        </svg>
+        <div class="grid" aria-hidden="true"></div>
+      </div>
+
+      <header class="topbar">
+        <div class="topbar-cell">
+          <span class="dot dot-live"></span>
+          <span class="mono">CELEBIPLUG · v1.0</span>
+        </div>
+        <div class="topbar-cell topbar-mid mono" id="welcome-clock">— · — · —</div>
+        <div class="topbar-cell topbar-end">
+          <div class="lang-switch" role="group" aria-label="Language">
+            <button type="button" class="lang-btn" data-lang="tr">TR</button>
+            <button type="button" class="lang-btn" data-lang="de">DE</button>
+            <button type="button" class="lang-btn" data-lang="en">EN</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="welcome-stage">
+        <div class="welcome-hero">
+          <h1 class="display-title">
+            <span class="line-1">CELEBIPLUG</span>
+          </h1>
+
+          <ol class="steps">
+            <li>
+              <span class="step-num mono">/01</span>
+              <span class="step-text" data-i18n-html="step.1"></span>
+            </li>
+            <li>
+              <span class="step-num mono">/02</span>
+              <span class="step-text" data-i18n-html="step.2"></span>
+            </li>
+            <li>
+              <span class="step-num mono">/03</span>
+              <span class="step-text" data-i18n-html="step.3"></span>
+            </li>
+            <li>
+              <span class="step-num mono">/04</span>
+              <span class="step-text" data-i18n-html="step.4"></span>
+            </li>
+          </ol>
+
+          <div class="hero-meta mono">
+            <span>SYSTEM · MAPBOX GL v3</span>
+            <span>·</span>
+            <span>DEM · TERRAIN-V1</span>
+            <span>·</span>
+            <span>CODEC · MP4 H.264 / WEBM VP9</span>
+          </div>
+        </div>
+
+        <aside class="token-card" aria-labelledby="token-title">
+          <span class="bracket bracket-tl" aria-hidden="true"></span>
+          <span class="bracket bracket-tr" aria-hidden="true"></span>
+          <span class="bracket bracket-bl" aria-hidden="true"></span>
+          <span class="bracket bracket-br" aria-hidden="true"></span>
+
+          <p class="card-kicker mono" data-i18n="token.kicker">[02] credentials required</p>
+          <h2 id="token-title" class="card-title" data-i18n="token.title">Mapbox public token</h2>
+          <p class="card-body" data-i18n="token.body"></p>
+
+          <label for="mapbox-token" class="mono">access_token</label>
+          <div class="token-row">
+            <input id="mapbox-token" type="password" placeholder="pk.eyJ1Ijoi..." autocomplete="off" spellcheck="false" />
+            <button id="apply-mapbox-token" type="button">
+              <span data-i18n="token.btn">Engage</span>
+              <span class="arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+          <p id="token-status" class="token-status mono" role="status"></p>
+
+          <details class="card-help">
+            <summary class="mono" data-i18n="token.help.summary">How do I get a token?</summary>
+            <ol>
+              <li><a href="https://account.mapbox.com/" target="_blank" rel="noreferrer">account.mapbox.com</a></li>
+              <li data-i18n="token.help.2">Access tokens → default public token</li>
+              <li data-i18n="token.help.3">Paste it here, then ENGAGE</li>
+            </ol>
+          </details>
+        </aside>
+      </main>
+
+      <footer class="bottombar mono">
+        <span data-i18n="foot.left">CELEBIPLUG · OPEN SOURCE · MIT</span>
+        <span data-i18n="foot.mid">NO DATA LEAVES YOUR BROWSER</span>
+        <span>BUILD 1.0.0</span>
+      </footer>
+    </section>
+
+    <!-- =========================== STUDIO =========================== -->
+    <section id="studio-screen" class="studio hidden">
+      <header class="studio-bar">
+        <div class="bar-cell bar-brand">
+          <span class="dot dot-live"></span>
+          <span class="mono">CELEBIPLUG</span>
+          <span class="sep">/</span>
+          <span class="mono dim">geo-cinema</span>
+        </div>
+        <div class="bar-cell bar-mid mono">
+          <span class="bar-tag">TC</span>
+          <span id="hud-tc" class="bar-val">00:00:00:00</span>
+          <span class="bar-tag">FR</span>
+          <span id="hud-frame" class="bar-val">0000 / 1800</span>
+          <span class="bar-tag">STATE</span>
+          <span id="hud-state" class="bar-val">STANDBY</span>
+        </div>
+        <div class="bar-cell bar-end">
+          <button id="open-settings" class="ghost-btn mono" type="button">SETTINGS</button>
+        </div>
+      </header>
+
+      <div class="studio-grid">
+        <!-- ====== LEFT RAIL ====== -->
+        <aside class="rail rail-left">
+          <section class="rail-block">
+            <header class="block-head">
+              <span class="block-kicker mono">/01 input</span>
+              <span class="block-title">Source</span>
+            </header>
+
+            <div class="source-tabs source-tabs-4" role="tablist" aria-label="Source mode">
+              <button type="button" class="source-tab is-active" data-source-tab="upload" role="tab">File</button>
+              <button type="button" class="source-tab" data-source-tab="search" role="tab">Search</button>
+              <button type="button" class="source-tab" data-source-tab="pin" role="tab">Pin</button>
+              <button type="button" class="source-tab" data-source-tab="box" role="tab">Box</button>
+            </div>
+
+            <div class="source-pane" data-source-pane="upload">
+              <label id="upload-box" class="upload" for="geojson-input">
+                <span class="bracket bracket-tl" aria-hidden="true"></span>
+                <span class="bracket bracket-tr" aria-hidden="true"></span>
+                <span class="bracket bracket-bl" aria-hidden="true"></span>
+                <span class="bracket bracket-br" aria-hidden="true"></span>
+                <span class="upload-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                    <path d="M12 4v12" />
+                    <path d="m6 10 6-6 6 6" />
+                    <path d="M4 20h16" />
+                  </svg>
+                </span>
+                <span id="upload-title" class="upload-title">Drop geojson</span>
+                <span id="upload-text" class="upload-text mono">.geojson · .json</span>
+                <span id="upload-file-hint" class="upload-hint mono">click to load</span>
+                <input id="geojson-input" type="file" accept=".geojson,.json,application/geo+json,application/json" />
+              </label>
+            </div>
+
+            <div class="source-pane hidden" data-source-pane="search">
+              <div class="source-row">
+                <input id="search-input" type="text" placeholder="Sultanahmet, İstanbul" autocomplete="off" spellcheck="false" />
+                <button id="search-go" type="button">
+                  <span class="mono">Find</span>
+                  <span class="arrow" aria-hidden="true">→</span>
+                </button>
+              </div>
+              <div class="pin-aux">
+                <label class="pin-radius mono">
+                  <span>R</span>
+                  <input id="search-radius" type="number" min="10" max="2000" step="10" value="60" />
+                  <span>m</span>
+                </label>
+              </div>
+              <p id="search-status" class="source-status mono">place name → geocode → R-meter square</p>
+            </div>
+
+            <div class="source-pane hidden" data-source-pane="pin">
+              <div class="source-row">
+                <input id="pin-coords" type="text" placeholder="41.0082, 28.9784" autocomplete="off" spellcheck="false" />
+                <button id="pin-go" type="button">
+                  <span class="mono">Drop</span>
+                  <span class="arrow" aria-hidden="true">→</span>
+                </button>
+              </div>
+              <div class="pin-aux">
+                <label class="pin-radius mono">
+                  <span>R</span>
+                  <input id="pin-radius" type="number" min="10" max="2000" step="10" value="40" />
+                  <span>m</span>
+                </label>
+                <button id="pin-pick-map" type="button" class="pin-pick-btn mono is-armed">Click map ▼</button>
+              </div>
+              <p id="pin-status" class="source-status mono">click anywhere on map to drop pin</p>
+            </div>
+
+            <div class="source-pane hidden" data-source-pane="box">
+              <p class="source-instr mono">drag a rectangle on the map to define the area</p>
+              <button id="box-draw" type="button" class="pin-pick-btn mono">Drag on map</button>
+              <p id="box-status" class="source-status mono">awaiting drag</p>
+            </div>
+          </section>
+
+          <section class="rail-block rail-poi">
+            <header class="block-head">
+              <span class="block-kicker mono">/02 points of interest</span>
+              <span class="block-title" id="nearby-title">Targets · 5km</span>
+              <span class="block-status mono" id="nearby-status">awaiting source</span>
+            </header>
+            <ol id="nearby-list" class="poi-list">
+              <li class="poi-empty mono">GeoJSON yuklenince yakin POI'ler burada listelenir.</li>
+            </ol>
+          </section>
+
+          <div class="visually-hidden" aria-hidden="true">
+            <span id="file-name">—</span>
+            <span id="feature-count">0</span>
+            <span id="geometry-types">—</span>
+            <span id="status-message">—</span>
+          </div>
+        </aside>
+
+        <!-- ====== CENTER STAGE ====== -->
+        <main class="stage" aria-label="3D harita onizlemesi">
+          <div class="stage-inner">
+            <div id="map-wrap" class="viewfinder aspect-16-9">
+              <div id="map" class="map-canvas"></div>
+              <div id="viewfinder-fade" class="viewfinder-fade" aria-hidden="true"></div>
+
+              <!-- viewfinder corner brackets -->
+              <span class="vf-bracket vf-tl" aria-hidden="true"></span>
+              <span class="vf-bracket vf-tr" aria-hidden="true"></span>
+              <span class="vf-bracket vf-bl" aria-hidden="true"></span>
+              <span class="vf-bracket vf-br" aria-hidden="true"></span>
+
+              <!-- HUD TOP STRIP -->
+              <div class="hud hud-top mono">
+                <div class="hud-cell">
+                  <span class="hud-tag">LAT</span>
+                  <span id="hud-lat" class="hud-val">00.00000°</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">LON</span>
+                  <span id="hud-lon" class="hud-val">00.00000°</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">BRG</span>
+                  <span id="hud-brg" class="hud-val">000°</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">PCH</span>
+                  <span id="hud-pch" class="hud-val">00°</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">ZM</span>
+                  <span id="hud-zoom" class="hud-val">00.00</span>
+                </div>
+                <div class="hud-cell hud-rec">
+                  <span class="rec-dot" aria-hidden="true"></span>
+                  <span id="hud-rec-label">STANDBY</span>
+                </div>
+              </div>
+
+              <!-- HUD BOTTOM STRIP -->
+              <div class="hud hud-bottom mono">
+                <div class="hud-cell">
+                  <span class="hud-tag">PRESET</span>
+                  <span id="active-shot-label" class="hud-val">SHOWCASE</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">ASPECT</span>
+                  <span id="preview-meta" class="hud-val">16:9</span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">DUR</span>
+                  <span id="hud-dur" class="hud-val">01:00</span>
+                </div>
+                <div class="hud-cell hud-cell-flex">
+                  <span class="hud-tag">TIMELINE</span>
+                  <span class="progress-track">
+                    <span id="route-progress" class="progress-fill"></span>
+                  </span>
+                </div>
+                <div class="hud-cell">
+                  <span class="hud-tag">STATUS</span>
+                  <span id="route-status" class="hud-val">awaiting source</span>
+                </div>
+              </div>
+
+              <!-- compass widget -->
+              <div class="compass" aria-hidden="true">
+                <svg viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r="36" fill="rgba(7,7,10,0.72)" stroke="rgba(255,159,28,0.45)" stroke-width="1" />
+                  <g stroke="rgba(243,238,229,0.4)" stroke-width="0.6">
+                    <line x1="40" y1="6" x2="40" y2="14" />
+                    <line x1="40" y1="66" x2="40" y2="74" />
+                    <line x1="6" y1="40" x2="14" y2="40" />
+                    <line x1="66" y1="40" x2="74" y2="40" />
+                  </g>
+                  <text x="40" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#ff9f1c" font-weight="600">N</text>
+                  <g id="compass-needle">
+                    <polygon points="40,16 36,44 40,40 44,44" fill="#ff9f1c" />
+                    <polygon points="40,64 36,40 40,40 44,40" fill="rgba(243,238,229,0.4)" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <!-- ====== RIGHT RAIL ====== -->
+        <aside class="rail rail-right">
+          <section class="rail-block">
+            <header class="block-head">
+              <span class="block-kicker mono">/03 preset</span>
+              <span class="block-title">Shot mode</span>
+            </header>
+            <div class="preset-buttons" aria-label="Cekim preseti">
+              <button class="preset-btn active" type="button" data-preset="showcase">
+                <span class="preset-num mono">01</span>
+                <span class="preset-name">Pilot</span>
+                <span class="preset-meta mono" id="preset-meta">5 scenes · 60s · 2 turns · fade-to-black cuts</span>
+              </button>
+            </div>
+
+          </section>
+
+          <section class="rail-block">
+            <header class="block-head">
+              <span class="block-kicker mono">/04 frame</span>
+              <span class="block-title">Aspect</span>
+            </header>
+            <div class="format-buttons" aria-label="Video formati">
+              <button class="format-btn active" type="button" data-aspect="16-9"><span class="ar ar-16-9"></span><span class="mono">16:9</span></button>
+              <button class="format-btn" type="button" data-aspect="9-16"><span class="ar ar-9-16"></span><span class="mono">9:16</span></button>
+              <button class="format-btn" type="button" data-aspect="1-1"><span class="ar ar-1-1"></span><span class="mono">1:1</span></button>
+              <button class="format-btn" type="button" data-aspect="4-5"><span class="ar ar-4-5"></span><span class="mono">4:5</span></button>
+              <button class="format-btn" type="button" data-aspect="21-9"><span class="ar ar-21-9"></span><span class="mono">21:9</span></button>
+              <button class="format-btn" type="button" data-aspect="4-3"><span class="ar ar-4-3"></span><span class="mono">4:3</span></button>
+              <button class="format-btn" type="button" data-aspect="3-4"><span class="ar ar-3-4"></span><span class="mono">3:4</span></button>
+            </div>
+          </section>
+
+          <section class="rail-block rail-cta">
+            <header class="block-head">
+              <span class="block-kicker mono">/05 capture</span>
+              <span class="block-title">Roll camera</span>
+            </header>
+            <div class="cta-row">
+              <button id="preview-route" class="btn-secondary" type="button" disabled>
+                <span class="mono">▶</span> Preview
+              </button>
+              <button id="record-route" class="btn-record" type="button" disabled>
+                <span class="rec-dot" aria-hidden="true"></span>
+                <span class="btn-record-label">Record</span>
+              </button>
+            </div>
+            <p class="cta-note mono">36–60 s · 30 fps · mp4 · h.264 (webm/vp9 fallback)</p>
+          </section>
+        </aside>
+      </div>
+
+      <footer class="studio-foot mono">
+        <span>CELEBIPLUG 1.0 · OPEN SOURCE</span>
+        <span id="foot-meta">no source loaded</span>
+        <span>© <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noreferrer">Mapbox</a> · © <a href="https://www.openstreetmap.org/about/" target="_blank" rel="noreferrer">OpenStreetMap</a></span>
+      </footer>
+
+      <!-- ====== RESULT MODAL ====== -->
+      <div id="result-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="result-title">
+        <button class="modal-backdrop" type="button" data-close-result aria-label="Sonucu kapat"></button>
+        <aside class="modal-panel result-panel">
+          <span class="bracket bracket-tl" aria-hidden="true"></span>
+          <span class="bracket bracket-tr" aria-hidden="true"></span>
+          <span class="bracket bracket-bl" aria-hidden="true"></span>
+          <span class="bracket bracket-br" aria-hidden="true"></span>
+          <header class="modal-head">
+            <div>
+              <p class="card-kicker mono">[capture]</p>
+              <h2 id="result-title" class="card-title">Take ready</h2>
+            </div>
+            <button id="close-result" class="ghost-btn mono" type="button" data-close-result>CLOSE</button>
+          </header>
+          <video id="result-video" class="result-video" controls playsinline></video>
+          <p id="result-meta" class="result-meta mono">—</p>
+          <div class="result-actions">
+            <button id="result-download" class="btn-secondary" type="button">
+              <span class="mono">↓</span> Download
+            </button>
+            <button id="result-rerecord-with-poi" class="btn-secondary" type="button" title="Re-record with the closest POIs marked">
+              <span class="mono">+</span> With POIs
+            </button>
+            <button id="result-rerecord-no-poi" class="btn-record" type="button" title="Re-record sparse (3-scene 36s)">
+              <span class="rec-dot" aria-hidden="true"></span>
+              <span>No POI · 36s</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ====== SETTINGS MODAL ====== -->
+      <div id="studio-settings" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <button class="modal-backdrop" type="button" data-close-settings aria-label="Ayarlari kapat"></button>
+        <aside class="modal-panel">
+          <span class="bracket bracket-tl" aria-hidden="true"></span>
+          <span class="bracket bracket-tr" aria-hidden="true"></span>
+          <span class="bracket bracket-bl" aria-hidden="true"></span>
+          <span class="bracket bracket-br" aria-hidden="true"></span>
+          <header class="modal-head">
+            <div>
+              <p class="card-kicker mono">[settings]</p>
+              <h2 id="settings-title" class="card-title">Mapbox token</h2>
+            </div>
+            <button id="close-settings" class="ghost-btn mono" type="button">CLOSE</button>
+          </header>
+
+          <p class="card-body" data-i18n-html="modal.body">The token is only stored in this browser.</p>
+          <label for="mapbox-token-studio" class="mono">access_token</label>
+          <div class="token-row">
+            <input id="mapbox-token-studio" type="password" placeholder="pk.eyJ1Ijoi..." autocomplete="off" spellcheck="false" />
+            <button id="apply-mapbox-token-studio" type="button">
+              <span data-i18n="token.btn.update">Update</span>
+              <span class="arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+          <p id="studio-token-status" class="token-status mono" role="status"></p>
+        </aside>
+      </div>
+    </section>
+
+    <script>
+      window.__CELEBI_ENV_TOKEN__ = {{ env_token|default('', true)|tojson }};
+    </script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>

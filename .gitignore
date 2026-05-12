@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# Flask
+instance/
+.env
+.env.*
+
+# Editor
+.vscode/
+.idea/
+
+# Generated media
+exports/
+recordings/
+*.webm
+*.mp4
+.claude/

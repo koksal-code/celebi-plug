@@ -1,0 +1,17 @@
+services:
+  celebi-plug:
+    build: .
+    container_name: celebi-plug
+    restart: unless-stopped
+    # Bind to loopback only — /record is unauthenticated and would
+    # otherwise let anyone on the network run Mapbox-billed shots.
+    ports:
+      - "127.0.0.1:5001:5001"
+    # Optional — present after the agent writes a Mapbox pk. token.
+    # MAPBOX_TOKEN is read inside the container and injected into the
+    # studio page; without it /record returns 400.
+    env_file:
+      - path: .env
+        required: false
+    shm_size: "1gb"
+    init: true
