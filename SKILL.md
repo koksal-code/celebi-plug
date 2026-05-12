@@ -186,6 +186,11 @@ Exact banner:
 - A sparse run should have a reasonable video duration (`>=30s`).
 - If validation fails, summarize HTTP code, first error lines, and a short docker log tail.
 - Tell the user expected render time before calling `/record`: usually `80–120s`, occasionally up to `180s`.
+- Attempt policy for video requests:
+  - Run one primary `/record` call using the user-requested params.
+  - If it fails for a clear technical reason (timeout/5xx/transport), run only one retry with the same params.
+  - After those attempts, stop and report concise diagnostics. Wait for user direction before any further attempt.
+  - Do not run extra variant experiments (changing `poi`, `preset`, or other params) unless the user explicitly asks.
 
 Suggested VPS validation block:
 
