@@ -1610,28 +1610,17 @@ function playCinematicRoute() {
   cinematicAnimationFrame = requestAnimationFrame(tick);
 }
 
-function pickRecordingMimeType(preferredFormat = null) {
-  const mp4Candidates = [
+function pickRecordingMimeType() {
+  const candidates = [
     "video/mp4;codecs=avc1.42E01F,mp4a.40.2",
     "video/mp4;codecs=avc1,mp4a",
     "video/mp4;codecs=avc1",
     "video/mp4",
-  ];
-  const webmCandidates = [
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp9",
     "video/webm;codecs=vp8",
     "video/webm",
   ];
-
-  // Local studio prefers direct MP4 when available. Headless /record can
-  // force WebM capture via URL param and convert it server-side afterwards.
-  let candidates = [];
-  if (preferredFormat === "webm") {
-    candidates = [...webmCandidates, ...mp4Candidates];
-  } else {
-    candidates = [...mp4Candidates, ...webmCandidates];
-  }
 
   for (const mime of candidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)) {
@@ -1655,7 +1644,6 @@ function codecTagForMime(mime) {
 
 async function recordCinematicRoute(options = {}) {
   const shouldDownload = options.download !== false;
-  const preferredFormat = options.preferredFormat === "webm" ? "webm" : null;
   if (!geojsonLoaded || !map || isRecording) return null;
   const canvas = map.getCanvas();
   if (!canvas || typeof canvas.captureStream !== "function" || typeof MediaRecorder === "undefined") {
@@ -1676,7 +1664,7 @@ async function recordCinematicRoute(options = {}) {
 
     recordedChunks = [];
     const stream = recordCanvas.captureStream(fps);
-    const mimeType = pickRecordingMimeType(preferredFormat);
+    const mimeType = pickRecordingMimeType();
     resultMime = mimeType;
     mediaRecorder = new MediaRecorder(stream, {
       mimeType,
@@ -1878,9 +1866,7 @@ async function maybeRunAutopilot() {
     // give Mapbox a beat to load tiles for the new center
     await new Promise((r) => window.setTimeout(r, 1500));
     await waitForMapIdle();
-    const recordMime = (params.get("record_mime") || "").toLowerCase();
-    const preferredFormat = recordMime === "webm" ? "webm" : null;
-    await recordCinematicRoute({ preferredFormat });
+    await recordCinematicRoute();
   }
 }
 

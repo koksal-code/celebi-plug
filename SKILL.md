@@ -92,17 +92,14 @@ The studio exposes two non-UI control surfaces so a browser-automation agent can
 
 Once the token is reachable, drive the studio through one of three control surfaces.
 
-### `/record` curl — VPS / headless agent (no local browser)
+### Local-only runtime
 
-When the agent runs on a VPS or any environment without a graphical browser, run CelebiPlug in Docker (`docker compose up -d`) and call the bundled `/record` endpoint. The container drives Chromium under Xvfb, captures WebM, then converts it to MP4 with FFmpeg before returning:
+CelebiPlug is local GUI-browser only.
 
-```bash
-curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip&preset=showcase'
-```
-
-Query params mirror the deep-link URL below (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`); `autostart` is implicit. Use `curl -OJ` so the server-provided `.mp4` filename is preserved. The endpoint returns `503` when the Docker render backend isn't available, `400` when no Mapbox token is configured, and `500` with worker stderr/transcode stderr on failure. A 60s shot takes ~80–120s under software WebGL; 36s sparse mode (`poi=skip`) finishes ~50–70s.
-
-Use this path only when the agent **cannot** open a GUI browser — on a Mac/PC dev box, the deep-link URL below is faster (real GPU).
+- Require a local browser with WebGL/GPU support.
+- If GUI browser is not available, stop and report local-only requirement.
+- Use `python3 app.py` + `http://127.0.0.1:5001`.
+- `/record` is disabled in this build.
 
 ### Deep-link URL params — useful when launching a fresh tab
 
@@ -140,21 +137,18 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 4. Ask for the Mapbox public token directly: "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım."
 5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
 6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then say only `token hazır`.
-7. Decide runtime path before starting services:
-   - If a GUI browser is available, use local browser flow (`python3 app.py` + `http://127.0.0.1:5001`).
-   - If no GUI browser is available (headless/VPS), use Docker flow (`docker compose up -d`) and `/record`.
-8. Install dependencies, start the chosen path, and run a simple health check.
-   - Setup health check must be fast: only check studio root (`GET /`) and container/app status.
-   - During setup, run fast checks only: `GET /` plus container/app status.
-   - Use `/record` only after an explicit user video request.
-9. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local/VPS URL and basic usage in one short summary.
-   - For Docker status wording, use short plain text such as: `Docker servis başlatıldı (docker compose up -d).`
+7. Check local runtime prerequisites before starting:
+   - GUI browser available (`chrome/chromium/firefox/safari` family)
+   - WebGL/GPU-capable local machine
+8. If prerequisites are available, start local flow and run a simple health check (`GET /`).
+9. If prerequisites are not available, stop setup and return a short local-only requirement message.
+10. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local URL and basic usage in one short summary.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
 - On first setup, show the exact ASCII banner below only when setup is complete, at the very top of the final setup summary.
 - Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
-- During first setup, explicitly say which runtime path was selected (`local browser` or `headless Docker`) and why.
+- During first setup, explicitly say local runtime decision (`local browser ready` or `local-only requirement not met`).
 - Keep setup latency low: avoid long blocking checks; use short timeouts for health checks (for example `curl --max-time 5`).
 - Keep token talk minimal. In first install, ask for token once and continue.
 - Keep token output minimal and safe: report `token hazır`.
@@ -174,57 +168,13 @@ Exact banner:
 +------------------------------------------------------------+
 ```
 
-**VPS `/record` run notes**:
+**Local recording notes**:
 
-- First-time install is token-first. Ask for the token before any recording step.
-- Choose runtime in this order: GUI browser flow first, Docker flow for headless/VPS.
-- For setup verification, use `GET /` and service status.
-- Avoid "probe recordings" with hardcoded place names. Ask the user target first, then record that target.
-- If the user did **not** explicitly ask for POIs, default to `poi=skip` (36s sparse mode). Do not silently switch to `poi=auto`.
-- A successful recording needs HTTP `200` plus a real video file. Keep the report honest if either part fails.
-- Treat outputs under `2MB` as suspicious and verify with `ffprobe` before calling them finished.
-- A sparse run should have a reasonable video duration (`>=30s`).
-- If validation fails, summarize HTTP code, first error lines, and a short docker log tail.
-- Tell the user expected render time before calling `/record`: usually `80–120s`, occasionally up to `180s`.
-- Attempt policy for video requests:
-  - Run one primary `/record` call using the user-requested params.
-  - If it fails for a clear technical reason (timeout/5xx/transport), run only one retry with the same params.
-  - After those attempts, stop and report concise diagnostics. Wait for user direction before any further attempt.
-  - Do not run extra variant experiments (changing `poi`, `preset`, or other params) unless the user explicitly asks.
-
-Suggested VPS validation block:
-
-```bash
-set -e
-cd /root/celebi-plug
-q_enc="${Q_ENC:?set encoded query from the user's requested place}"
-resp_code="$(curl -sS -L -D /tmp/record_headers.txt -w '%{http_code}' \
-  "http://127.0.0.1:5001/record?q=${q_enc}&aspect=16-9&poi=skip&preset=showcase" \
-  -o /tmp/record_body.bin)"
-echo "http_code=$resp_code"
-if [ "$resp_code" != "200" ]; then
-  echo "record_failed_http=$resp_code"
-  head -c 400 /tmp/record_body.bin || true
-  docker compose logs --tail=120 | sed -n '1,120p'
-  exit 1
-fi
-ctype="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{print $2}' /tmp/record_headers.txt | tr -d '\r' | tail -1)"
-case "$ctype" in
-  *mp4*) ext="mp4" ;;
-  *webm*) ext="webm" ;;
-  *) ext="bin" ;;
-esac
-artifact="celebi-plug-record.${ext}"
-mv /tmp/record_body.bin "$artifact"
-size="$(stat -c '%s' "$artifact")"
-echo "artifact=$artifact size=$size"
-if [ "$size" -lt 2000000 ]; then
-  echo "record_failed_small_file"
-  ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$artifact" || true
-  exit 1
-fi
-ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$artifact"
-```
+- First-time install is token-first. Ask for token before recording.
+- Ask target, aspect, and POI preference.
+- If user did not explicitly ask for POIs, default to `poi=skip` (36s sparse mode).
+- Run one primary recording and, if needed, one retry with same params.
+- Report file path, size, format, and duration clearly.
 
 0. **Token** (during first setup, before recording) — "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım." Validate it starts with `pk.`; if it starts with `sk.`, briefly explain and ask for a public token. Then persist:
 
@@ -360,7 +310,6 @@ The browser-only pipeline:
 - A 2D `recordCanvas` mirrors the Mapbox canvas each frame and composites the fade overlay on top.
 - The MediaRecorder stream is `recordCanvas.captureStream(30)`, not the Mapbox canvas directly. This is what makes fade-to-black transitions visible in the recorded output.
 - Local/browser flow probes MIME MP4-first so modern Chromium / Safari record straight to `.mp4`: `video/mp4;codecs=avc1.42E01F,mp4a.40.2` → `avc1,mp4a` → `avc1` → `mp4` → `webm;vp9,opus` → `vp9` → `vp8` → `webm`.
-- Headless `/record` flow sets `record_mime=webm`, captures WebM in Chromium, then transcodes to MP4 with FFmpeg in Docker.
 - `videoBitsPerSecond: 12_000_000`.
 - Output filename in local/browser flow: `celebi-plug-<preset>-<iso-timestamp>.<mp4|webm>`.
 

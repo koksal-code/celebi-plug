@@ -125,25 +125,13 @@ open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostar
 ls -t ~/Downloads/celebi-plug-* | head -1
 ```
 
-### VPS / headless install (Docker)
+### Local-only runtime
 
-If you don't have a local browser — Linux VPS, Codespaces, CI runner — run the Docker image. It bundles Chromium + Xvfb + Playwright + FFmpeg and exposes a `/record` endpoint that captures WebM then returns MP4:
+CelebiPlug is local-browser only.
 
-```bash
-git clone https://github.com/koksal-code/celebi-plug
-cd celebi-plug
-
-echo 'MAPBOX_TOKEN=pk.eyJ1...' > .env       # one-time token write
-docker compose up -d                         # builds once (~5 min), then daemonizes
-
-curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip'
-```
-
-Query params on `/record` mirror the autopilot URL (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`) — only `autostart` is implicit (`/record` always records). Response is a streamed recording with `Content-Disposition: attachment`; use `curl -OJ` so the server-provided `.mp4` filename is preserved.
-
-The container binds to `127.0.0.1:5001` only, so `/record` is not reachable from the network. A 60s shot takes ~80–120s wall-clock under software WebGL (no GPU); 36s sparse mode (`poi=skip`) finishes ~50–70s.
-
-Mac/PC users with a local browser do **not** need Docker — the in-browser autopilot flow above is faster and uses your GPU.
+- Use a local GUI browser with WebGL/GPU support.
+- Start `python3 app.py` and record in-studio at `http://127.0.0.1:5001`.
+- `/record` is disabled in this build.
 
 ### Chat-native install (no welcome screen at all)
 

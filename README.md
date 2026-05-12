@@ -108,31 +108,13 @@ Grab a token at `https://account.mapbox.com` → Access tokens → default publi
 
 ---
 
-# VPS / Headless (no local browser)
+# Local-Only Requirement
 
-If you don't have a local browser — Linux VPS, Codespaces, CI runner — bring your own browser by running CelebiPlug in Docker. The container bundles **Chromium + Xvfb + Playwright + FFmpeg** and exposes a `/record` endpoint that captures WebM and returns MP4.
+CelebiPlug now supports local GUI-browser workflow only.
 
-```bash
-git clone https://github.com/koksal-code/celebi-plug
-cd celebi-plug
-
-echo 'MAPBOX_TOKEN=pk.eyJ1...' > .env       # one-time token write
-docker compose up -d                         # builds and starts (~5 min first time)
-
-curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip'
-```
-
-| Param | Notes |
-|---|---|
-| `q=` · `lat=`+`lon=` · `radius=` | same as autopilot URL |
-| `preset=` · `aspect=` · `poi=` | same as autopilot URL |
-| (no `autostart=` needed — `/record` always records) | |
-
-Notes:
-- The port is bound to `127.0.0.1` only; `/record` is unauthenticated and would otherwise let any host on the network spend your Mapbox quota.
-- Use `curl -OJ` so the server-provided `.mp4` filename is preserved.
-- Rendering uses software WebGL (`--use-gl=swiftshader`), so a 60s shot takes ~80–120s wall-clock on a typical 2-vCPU VPS. Quality is the same; only the encode wall time is longer.
-- Mac/PC users can ignore this entire section — the in-browser flow above is faster and uses your GPU.
+- Use a local machine with a modern browser and working WebGL/GPU acceleration.
+- Start with `python3 app.py` and open `http://127.0.0.1:5001`.
+- `/record` is disabled in this local-only build.
 
 ---
 
