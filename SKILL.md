@@ -139,6 +139,7 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 - Before first record attempt, report **where the token came from**: `MAPBOX_TOKEN` env, project `.env`, hash-bootstrap, or not found.
 - Never print the raw token; only masked form is allowed (example: `pk.***ABCD`).
 - If a token is already present from a previous run, say that explicitly so the user understands why no new token was asked.
+- If `/root/celebi-plug` (or target dir) already exists, run `git pull --ff-only` before any install/record steps and report the active commit hash.
 
 Suggested banner:
 
@@ -174,6 +175,41 @@ fi
 echo "token_source=$token_src token_masked=$masked"
 ```
 
+**Hard safety rules for VPS `/record` runs** (must follow):
+
+- If the user did **not** explicitly ask for POIs, default to `poi=skip` (36s sparse mode). Do not silently switch to `poi=auto`.
+- Never report success from a failed HTTP call. Success requires HTTP `200`.
+- Never copy error bodies (`/tmp/rec_body.txt` etc.) into `.mp4` filenames.
+- Treat outputs under `2MB` as suspicious; verify with `ffprobe` before declaring success.
+- Success gate: container format is video and duration is reasonable (`>=30s` for sparse runs).
+- If validation fails, report failure clearly with HTTP code + first error lines + short docker log tail.
+
+Suggested VPS validation block:
+
+```bash
+set -e
+cd /root/celebi-plug
+resp_code="$(curl -sS -L -OJ -w '%{http_code}' \
+  'http://127.0.0.1:5001/record?q=Ayasofya+Camii&aspect=16-9&poi=skip&preset=showcase' \
+  -o /tmp/record_body.bin)"
+echo "http_code=$resp_code"
+if [ "$resp_code" != "200" ]; then
+  echo "record_failed_http=$resp_code"
+  docker compose logs --tail=120 | sed -n '1,120p'
+  exit 1
+fi
+latest="$(ls -t celebi-plug-* 2>/dev/null | head -1)"
+test -n "$latest"
+size="$(stat -c '%s' "$latest")"
+echo "artifact=$latest size=$size"
+if [ "$size" -lt 2000000 ]; then
+  echo "record_failed_small_file"
+  ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$latest" || true
+  exit 1
+fi
+ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$latest"
+```
+
 0. **Token** (only on the very first job; skip on subsequent jobs) — "İlk kurulum için Mapbox public token'ına ihtiyacım var. `pk.` ile başlayan token'ını paylaş — `sk.` ile başlayan secret token'ı kullanma. Token bilgisayarında `.env` dosyasında kalacak, hiçbir sunucuya gitmeyecek." Validate it starts with `pk.`; if it starts with `sk.`, refuse and re-ask. Then persist:
 
    - **If the agent has shell access to the celebi-plug directory** (recommended): `echo 'MAPBOX_TOKEN=pk.XXX' > /path/to/celebi-plug/.env`. This is a one-time write — every subsequent shot reuses the same `.env` automatically. No URL hash needed.
@@ -197,6 +233,10 @@ http://127.0.0.1:5001/?
 ```
 
 Open with `open "$URL"`, wait ~38–72s depending on mode, then `ls -t ~/Downloads/celebi-plug-* | head -1` (extension is `.mp4` or `.webm` depending on the browser).
+
+If user asks for a **download link**, do not assume a public HTTP server already exists. First state one of:
+- direct transfer command (`scp`/`rsync`) as the default safe path, or
+- temporary HTTP link only after explicitly noting port exposure and runtime scope.
 
 **Overpass POI snippet** (the agent runs this in bash, same query the page uses):
 
