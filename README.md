@@ -36,7 +36,7 @@
 
 CelebiPlug turns a place — a GeoJSON file, a search query, a map pin, or a drag-rectangle — into a cinematic 3D drone-style shot directly inside your browser.
 
-It uses Mapbox satellite imagery, 3D terrain, 3D buildings, the Pilot cinematic preset, and the browser’s MediaRecorder API to export a **36- or 60-second `.mp4`** at **30 fps** (H.264 on modern Chromium / Safari; falls back to WebM / VP9 on browsers without an MP4 encoder).
+It uses Mapbox satellite imagery, 3D terrain, 3D buildings, the Pilot cinematic preset, and the browser’s MediaRecorder API to export a **36- or 60-second video** at **30 fps** (`.mp4` / H.264 on modern Chromium / Safari; `.webm` / VP9 fallback on browsers without an MP4 encoder).
 
 - No server-side rendering
 - No FFmpeg dependency
@@ -105,6 +105,56 @@ echo 'MAPBOX_TOKEN=pk.eyJ1...' > /path/to/celebi-plug/.env
 **Manual path** — open `http://127.0.0.1:5001`, paste the token in the welcome screen, and the studio appears.
 
 Grab a token at `https://account.mapbox.com` → Access tokens → default public token. The token starts with `pk.` — never use an `sk.` secret token. It is stored only in your browser’s `localStorage` and never sent to the server.
+
+---
+
+# Terminal Local Kurulum (Ajan'siz)
+
+Bu akış tamamen terminal + local browser içindir.
+
+1. Repoyu klonla:
+
+```bash
+git clone https://github.com/koksal-code/celebi-plug
+cd celebi-plug
+```
+
+2. Python ortamını oluştur ve aktive et:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. Bağımlılığı kur:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Mapbox public tokenını `.env` dosyasına yaz (`pk.` ile başlamalı):
+
+```bash
+echo 'MAPBOX_TOKEN=pk.eyJ1...' > .env
+```
+
+5. Uygulamayı başlat:
+
+```bash
+python3 app.py
+```
+
+6. Tarayıcıdan aç:
+
+```text
+http://127.0.0.1:5001
+```
+
+7. Kayıt al:
+- Hedefini seç (File / Search / Pin / Box)
+- Oranı seç (ör. `9:16`)
+- İstersen POI seç
+- `Preview` sonra `Record`
 
 ---
 
@@ -292,7 +342,7 @@ Other methods: `isReady()`, `getState()`, `getPois()`, `selectPois([0,1])`, `pic
 - [`install.md`](install.md) — first-time install for LLMs to execute.
 - [`AGENTS.md`](AGENTS.md) — code priorities at a glance.
 
-Register `SKILL.md` with your agent — see [`install.md`](install.md#make-celebi-plug-global-for-the-current-agent) for Claude Code and Codex commands.
+Register `SKILL.md` with your agent using your agent tool's local skill-registration flow.
 
 ---
 

@@ -1,11 +1,11 @@
 ---
 name: celebi-plug
-description: Day-to-day rules for working on CelebiPlug — running the Flask studio, walking users through the Mapbox public-token onboarding, loading GeoJSON, editing cinematic Mapbox 3D drone-style camera presets, and exporting 60-second MP4/WebM videos from the browser. For first-time install, read install.md instead.
+description: Day-to-day rules for working on CelebiPlug — running the Flask studio, walking users through the Mapbox public-token onboarding, loading GeoJSON, editing cinematic Mapbox 3D drone-style camera presets, and exporting 36s/60s MP4/WebM videos from the browser. For first-time install, read install.md instead.
 ---
 
 # CelebiPlug Skill
 
-CelebiPlug is a single-page Flask + JavaScript app that turns GeoJSON into 60-second cinematic 3D drone-style videos. It runs entirely in the browser on top of **Mapbox GL JS v3**, using a user-supplied Mapbox **public** token (`pk.…`) for satellite imagery, `mapbox-terrain-dem-v1` 3D terrain, and `composite/building` fill-extrusion 3D buildings.
+CelebiPlug is a single-page Flask + JavaScript app that turns GeoJSON into cinematic 3D drone-style videos (60s full Pilot or 36s sparse no-POI mode). It runs entirely in the browser on top of **Mapbox GL JS v3**, using a user-supplied Mapbox **public** token (`pk.…`) for satellite imagery, `mapbox-terrain-dem-v1` 3D terrain, and `composite/building` fill-extrusion 3D buildings.
 
 For first-time install and Mapbox token bootstrap, read `install.md`. This file covers everything *after* the studio is up.
 
@@ -57,7 +57,7 @@ When the user asks for a cinematic video of a place, area, route, landmark, parc
 
 6. Preview before recording. If framing is poor, adjust preset, aspect ratio, or POIs and preview again.
 
-7. Record the final 60-second `.mp4` (or `.webm` on the fallback path), then report the downloaded filename/location along with the chosen preset, aspect ratio, subject, and any limitations encountered.
+7. Record the final take (`60s` full, or `36s` sparse if POI skip path is selected), then report the downloaded filename/location along with the chosen preset, aspect ratio, subject, and any limitations encountered.
 
 ## Input modes
 
@@ -339,4 +339,4 @@ If the Flask server is running, the verification block in `install.md` covers UI
 - Keep the file tree minimal at root: `app.py`, `requirements.txt`, `templates/`, `static/`, plus the four agent-facing markdown files (`README.md`, `install.md`, `SKILL.md`, `AGENTS.md`).
 - Don't reintroduce Cesium. CelebiPlug is a Mapbox project.
 - Don't add server-side rendering or token-handling endpoints.
-- Don't break the 60-second timing or 2-rotation count of the Pilot preset without a user request.
+- Don't break the full-Pilot timing (60s) or 2-rotation count without a user request.

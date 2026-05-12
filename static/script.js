@@ -160,7 +160,7 @@ const translations = {
     "hero.kicker": "[01] görev brifingi",
     "hero.title.line2": "<em>Geo-cinema</em> motoru",
     "hero.lead":
-      "GeoJSON'dan sinematik 3D drone çekimi. Mapbox uydu + 3D arazi. Tarayıcıdan 60 saniyelik MP4 (H.264).",
+      "GeoJSON'dan sinematik 3D drone çekimi. Mapbox uydu + 3D arazi. Tarayıcıdan 36-60 sn video (MP4/H.264, WebM/VP9 fallback).",
     "step.1": "Mapbox public token (<code>pk.</code>) ekle.",
     "step.2": "GeoJSON dosyanı yükle, POI'lerini seç.",
     "step.3": "Preset ve en-boy oranı seç, kaydet.",
@@ -190,7 +190,7 @@ const translations = {
     "hero.kicker": "[01] missionsbriefing",
     "hero.title.line2": "<em>Geo-cinema</em>-Engine",
     "hero.lead":
-      "Kinematische 3D-Drohnenaufnahmen aus GeoJSON. Mapbox-Satellit + 3D-Gelände. 60-Sekunden-MP4 (H.264) direkt aus dem Browser.",
+      "Kinematische 3D-Drohnenaufnahmen aus GeoJSON. Mapbox-Satellit + 3D-Gelände. 36-60s Video direkt im Browser (MP4/H.264, WebM/VP9 fallback).",
     "step.1": "Mapbox-Public-Token (<code>pk.</code>) hinzufügen.",
     "step.2": "GeoJSON hochladen, POIs auswählen.",
     "step.3": "Preset und Seitenverhältnis wählen, aufnehmen.",
@@ -221,7 +221,7 @@ const translations = {
     "hero.kicker": "[01] mission brief",
     "hero.title.line2": "<em>Geo-cinema</em> engine",
     "hero.lead":
-      "Cinematic 3D drone shots from GeoJSON. Mapbox satellite + 3D terrain. A 60-second MP4 (H.264) straight from your browser.",
+      "Cinematic 3D drone shots from GeoJSON. Mapbox satellite + 3D terrain. A 36-60s browser recording (MP4/H.264, WebM/VP9 fallback).",
     "step.1": "Add a Mapbox public token (<code>pk.</code>).",
     "step.2": "Upload your GeoJSON, pick POIs.",
     "step.3": "Choose a preset and aspect ratio, capture.",
