@@ -76,6 +76,50 @@ def recording_mimetype(path: Path) -> str:
     return _recording_mimetypes.get(path.suffix.lower(), "application/octet-stream")
 
 
+def transcode_webm_to_mp4(input_path: Path) -> Path:
+    """Convert a WebM capture to H.264 MP4 for downstream compatibility."""
+    ffmpeg_bin = shutil.which("ffmpeg")
+    if ffmpeg_bin is None:
+        raise RuntimeError(
+            "ffmpeg not found in container. Rebuild Docker image and try again:\n"
+            "  docker compose up -d --build\n"
+        )
+
+    output_path = input_path.with_suffix(".mp4")
+    result = subprocess.run(
+        [
+            ffmpeg_bin,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(input_path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            str(output_path),
+        ],
+        capture_output=True,
+        timeout=180,
+    )
+    if result.returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+        log = (result.stderr or result.stdout or b"").decode("utf-8", "replace")
+        raise RuntimeError(f"ffmpeg transcode failed:\n\n{log}\n")
+    return output_path
+
+
 @app.after_request
 def add_no_cache_headers(response):
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -92,8 +136,8 @@ def index():
 @app.route("/record")
 def record():
     """Headless recording for VPS users. Spawns Chromium under Xvfb,
-    points it at the autopilot URL, and streams back the MP4/WebM that
-    MediaRecorder downloads inside that browser.
+    points it at the autopilot URL, captures WebM in-browser, then
+    transcodes to MP4 before streaming the file back.
 
     Mac/PC users skip this entirely — they record in their own browser
     via the autopilot URL at /."""
@@ -114,6 +158,7 @@ def record():
 
     forwarded = {k: v for k, v in request.args.items() if k in _record_query_keys}
     forwarded["autostart"] = "1"
+    forwarded["record_mime"] = "webm"
     query = urlencode(forwarded)
     internal_port = os.environ.get("PORT") or request.environ.get("SERVER_PORT") or "5001"
     autopilot_url = f"http://127.0.0.1:{internal_port}/?{query}"
@@ -144,11 +189,15 @@ def record():
                 500,
             )
         output_path = output_paths[-1]
+        if output_path.suffix.lower() == ".webm":
+            try:
+                output_path = transcode_webm_to_mp4(output_path)
+            except RuntimeError as exc:
+                return str(exc), 500
+
         preset = make_safe_download_piece(forwarded.get("preset", "showcase"), "showcase")
         subject = make_safe_download_piece(forwarded.get("q", "shot"), "shot")
-        download_name = (
-            f"celebi-plug-{preset}-{subject}{output_path.suffix.lower()}"
-        )
+        download_name = f"celebi-plug-{preset}-{subject}{output_path.suffix.lower()}"
         return send_file(
             output_path,
             mimetype=recording_mimetype(output_path),

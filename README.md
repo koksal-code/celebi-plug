@@ -68,11 +68,11 @@ GeoJSON dropped in
 - 🧭 Auto-tuned framing — radius scales from geocoder `place_type` (address → tight; city → wide)
 - 🎯 Draggable corner handles on synthetic shapes — dial the framing without re-running search
 - 🎬 Pilot cinematic preset, with a 60s default and a 36s sparse mode (no POI)
-- 🎥 Browser-native MP4 / H.264 recording at 12 Mbps, 30 fps (modern Chromium / Safari); WebM / VP9 fallback otherwise — no conversion step in either case
+- 🎥 Browser-native recording at 12 Mbps, 30 fps (modern Chromium / Safari: MP4/H.264; WebM/VP9 fallback)
 - 🌑 Fade-to-black scene transitions
 - 🎞 Result modal — preview the take, download, or re-record with/without POIs
 - 🤖 Agent autopilot — deep-link URL (`?q=...&poi=skip&autostart=1`) and `window.celebiPlug` JS API
-- 🚫 No server-side rendering, no FFmpeg dependency, no token-handling endpoint
+- 🚫 No server-side rendering, no token-handling endpoint
 - 🌐 Turkish, German, and English onboarding
 
 ---
@@ -110,7 +110,7 @@ Grab a token at `https://account.mapbox.com` → Access tokens → default publi
 
 # VPS / Headless (no local browser)
 
-If you don't have a local browser — Linux VPS, Codespaces, CI runner — bring your own browser by running CelebiPlug in Docker. The container bundles **Chromium + Xvfb + Playwright** and exposes a new `/record` endpoint that returns the recorded file directly (`.mp4` when H.264 is available, `.webm` fallback otherwise).
+If you don't have a local browser — Linux VPS, Codespaces, CI runner — bring your own browser by running CelebiPlug in Docker. The container bundles **Chromium + Xvfb + Playwright + FFmpeg** and exposes a `/record` endpoint that captures WebM and returns MP4.
 
 ```bash
 git clone https://github.com/koksal-code/celebi-plug
@@ -130,7 +130,7 @@ curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=ski
 
 Notes:
 - The port is bound to `127.0.0.1` only; `/record` is unauthenticated and would otherwise let any host on the network spend your Mapbox quota.
-- Use `curl -OJ` so the server-provided `.mp4` / `.webm` extension is preserved.
+- Use `curl -OJ` so the server-provided `.mp4` filename is preserved.
 - Rendering uses software WebGL (`--use-gl=swiftshader`), so a 60s shot takes ~80–120s wall-clock on a typical 2-vCPU VPS. Quality is the same; only the encode wall time is longer.
 - Mac/PC users can ignore this entire section — the in-browser flow above is faster and uses your GPU.
 

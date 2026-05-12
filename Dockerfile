@@ -10,6 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
 # Xvfb gives Chromium a real display; the rest are Chromium's shared-lib
 # deps. Playwright fetches the browser binary itself in the next step.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg \
         xvfb \
         xauth \
         ca-certificates \

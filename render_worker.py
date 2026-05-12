@@ -36,7 +36,7 @@ def resolve_output_path(output_path: str, suggested_filename: str) -> Path:
 
     suffix = Path(suggested_filename or "").suffix.lower()
     if suffix not in DOWNLOAD_EXTENSIONS:
-        suffix = ".mp4"
+        suffix = ".webm"
     return path.with_suffix(suffix)
 
 

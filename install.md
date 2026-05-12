@@ -127,7 +127,7 @@ ls -t ~/Downloads/celebi-plug-* | head -1
 
 ### VPS / headless install (Docker)
 
-If you don't have a local browser — Linux VPS, Codespaces, CI runner — run the Docker image. It bundles Chromium + Xvfb + Playwright and exposes a `/record` endpoint that returns the recorded file directly (`.mp4` when H.264 is available, `.webm` fallback otherwise):
+If you don't have a local browser — Linux VPS, Codespaces, CI runner — run the Docker image. It bundles Chromium + Xvfb + Playwright + FFmpeg and exposes a `/record` endpoint that captures WebM then returns MP4:
 
 ```bash
 git clone https://github.com/koksal-code/celebi-plug
@@ -139,7 +139,7 @@ docker compose up -d                         # builds once (~5 min), then daemon
 curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip'
 ```
 
-Query params on `/record` mirror the autopilot URL (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`) — only `autostart` is implicit (`/record` always records). Response is a streamed recording with `Content-Disposition: attachment`; use `curl -OJ` so the server-provided `.mp4` / `.webm` extension is preserved.
+Query params on `/record` mirror the autopilot URL (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`) — only `autostart` is implicit (`/record` always records). Response is a streamed recording with `Content-Disposition: attachment`; use `curl -OJ` so the server-provided `.mp4` filename is preserved.
 
 The container binds to `127.0.0.1:5001` only, so `/record` is not reachable from the network. A 60s shot takes ~80–120s wall-clock under software WebGL (no GPU); 36s sparse mode (`poi=skip`) finishes ~50–70s.
 

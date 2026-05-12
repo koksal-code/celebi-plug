@@ -94,13 +94,13 @@ Once the token is reachable, drive the studio through one of three control surfa
 
 ### `/record` curl — VPS / headless agent (no local browser)
 
-When the agent runs on a VPS or any environment without a graphical browser, run CelebiPlug in Docker (`docker compose up -d`) and call the bundled `/record` endpoint. The container drives a Chromium under Xvfb internally and streams the recorded file back (`.mp4` when H.264 is available, `.webm` fallback otherwise):
+When the agent runs on a VPS or any environment without a graphical browser, run CelebiPlug in Docker (`docker compose up -d`) and call the bundled `/record` endpoint. The container drives Chromium under Xvfb, captures WebM, then converts it to MP4 with FFmpeg before returning:
 
 ```bash
 curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip&preset=showcase'
 ```
 
-Query params mirror the deep-link URL below (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`); `autostart` is implicit. Use `curl -OJ` so the server-provided `.mp4` / `.webm` extension is preserved. The endpoint returns `503` when the Docker render backend isn't available, `400` when no Mapbox token is configured, and `500` with worker stderr on render failure. A 60s shot takes ~80–120s under software WebGL; 36s sparse mode (`poi=skip`) finishes ~50–70s.
+Query params mirror the deep-link URL below (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`); `autostart` is implicit. Use `curl -OJ` so the server-provided `.mp4` filename is preserved. The endpoint returns `503` when the Docker render backend isn't available, `400` when no Mapbox token is configured, and `500` with worker stderr/transcode stderr on failure. A 60s shot takes ~80–120s under software WebGL; 36s sparse mode (`poi=skip`) finishes ~50–70s.
 
 Use this path only when the agent **cannot** open a GUI browser — on a Mac/PC dev box, the deep-link URL below is faster (real GPU).
 
@@ -359,17 +359,10 @@ The browser-only pipeline:
 - Mapbox is created with `preserveDrawingBuffer: true` (required for `drawImage` from the WebGL canvas).
 - A 2D `recordCanvas` mirrors the Mapbox canvas each frame and composites the fade overlay on top.
 - The MediaRecorder stream is `recordCanvas.captureStream(30)`, not the Mapbox canvas directly. This is what makes fade-to-black transitions visible in the recorded output.
-- MIME type is probed MP4-first so modern Chromium / Safari record straight to `.mp4`: `video/mp4;codecs=avc1.42E01F,mp4a.40.2` → `avc1,mp4a` → `avc1` → `mp4` → `webm;vp9,opus` → `vp9` → `vp8` → `webm`. The download extension follows `blob.type` (`mp4` / `webm`).
+- Local/browser flow probes MIME MP4-first so modern Chromium / Safari record straight to `.mp4`: `video/mp4;codecs=avc1.42E01F,mp4a.40.2` → `avc1,mp4a` → `avc1` → `mp4` → `webm;vp9,opus` → `vp9` → `vp8` → `webm`.
+- Headless `/record` flow sets `record_mime=webm`, captures WebM in Chromium, then transcodes to MP4 with FFmpeg in Docker.
 - `videoBitsPerSecond: 12_000_000`.
-- Output filename: `celebi-plug-<preset>-<iso-timestamp>.<mp4|webm>`.
-
-Modern Chromium / Safari users already get `.mp4` natively — no conversion needed. Only the WebM fallback path (older browsers, Firefox) requires post-processing if MP4 is required downstream; the project deliberately ships no FFmpeg dependency, but the user can convert their own `.webm` locally:
-
-```bash
-ffmpeg -i celebi-plug-pilot-*.webm -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p output.mp4
-```
-
-Do **not** add a server-side conversion route or ship ffmpeg.wasm. That defeats the drop-in install promise.
+- Output filename in local/browser flow: `celebi-plug-<preset>-<iso-timestamp>.<mp4|webm>`.
 
 ## i18n
 
@@ -396,5 +389,5 @@ If the Flask server is running, the verification block in `install.md` covers UI
 - Use "skill" or "agent skill" for agent integration.
 - Keep the file tree minimal at root: `app.py`, `requirements.txt`, `templates/`, `static/`, plus the four agent-facing markdown files (`README.md`, `install.md`, `SKILL.md`, `AGENTS.md`).
 - Don't reintroduce Cesium. CelebiPlug is a Mapbox project.
-- Don't add server-side rendering, ffmpeg, or token-handling endpoints.
+- Don't add server-side rendering or token-handling endpoints.
 - Don't break the 60-second timing or 2-rotation count of the Pilot preset without a user request.
