@@ -136,16 +136,16 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 
 1. Clone the repo, or if it already exists, update it with `git pull --ff-only` and report the active commit hash.
 2. Read `README.md`, `install.md`, `AGENTS.md`, and `SKILL.md`.
-3. After reading the files, print the exact plain ASCII banner below and one short setup sentence. Do not generate a figlet-style banner; it can wrap or lose characters in agent terminals.
+3. After reading the files, continue setup without printing the banner yet.
 4. Ask for the Mapbox public token directly: "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım."
 5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
 6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then only say `token hazır`; do not print a masked token unless the user asks for diagnostics.
-7. Install dependencies, start the studio, run a simple health check, and explain the local/VPS URL in one short summary.
-8. End the turn after the setup summary. Do not ask follow-up questions, do not start a recording, and do not keep probing. Wait for the user's next message.
+7. Install dependencies, start the studio, and run a simple health check.
+8. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local/VPS URL and basic usage in one short summary.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
-- On first setup, show the exact ASCII banner below only after the required repo docs are read.
+- On first setup, show the exact ASCII banner below only when setup is complete, at the very top of the final setup summary.
 - Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
 - Keep token talk minimal. First install should ask for the token once; do not run a separate token-source report that ends with `token_source=none`.
 - Never print the raw token. Prefer saying `token hazır`; use a masked form only for troubleshooting.
