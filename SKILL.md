@@ -144,11 +144,11 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 Suggested banner:
 
 ```text
-  ____     _      _     _  ____  _ _
- / ___|___| | ___| |__ (_)/ ___|| (_)_ __
-| |   / _ \ |/ _ \ '_ \| | |  _| | | '_ \
-| |__|  __/ |  __/ |_) | | |_| | | | | | |
- \____\___|_|\___|_.__/|_|\____|_|_|_| |_|
+  ____  _____  _      _____  ____   ___           ____   _      _   _   ____  
+ / ___|| ____|| |    | ____|| __ ) |_ _|         |  _ \ | |    | | | | / ___| 
+| |    |  _|  | |    |  _|  |  _ \  | |   _____  | |_) || |    | | | || |  _  
+| |___ | |___ | |___ | |___ | |_) | | |  |_____| |  __/ | |___ | |_| || |_| | 
+ \____||_____||_____||_____||____/ |___|         |_|    |_____| \___/  \____| 
 ```
 
 Suggested preflight token-source check (`bash`, masked output only):
@@ -175,22 +175,25 @@ fi
 echo "token_source=$token_src token_masked=$masked"
 ```
 
-**Hard safety rules for VPS `/record` runs** (must follow):
+**VPS `/record` run notes**:
 
+- First-time install is token-first. If no valid `pk.` token is present, ask for token early, before a `/record` attempt.
+- Avoid "probe recordings" with hardcoded place names. Ask the user target first, then record that target.
 - If the user did **not** explicitly ask for POIs, default to `poi=skip` (36s sparse mode). Do not silently switch to `poi=auto`.
-- Never report success from a failed HTTP call. Success requires HTTP `200`.
-- Never copy error bodies (`/tmp/rec_body.txt` etc.) into `.mp4` filenames.
-- Treat outputs under `2MB` as suspicious; verify with `ffprobe` before declaring success.
-- Success gate: container format is video and duration is reasonable (`>=30s` for sparse runs).
-- If validation fails, report failure clearly with HTTP code + first error lines + short docker log tail.
+- A successful recording needs HTTP `200` plus a real video file. Keep the report honest if either part fails.
+- Treat outputs under `2MB` as suspicious and verify with `ffprobe` before calling them finished.
+- A sparse run should have a reasonable video duration (`>=30s`).
+- If validation fails, summarize HTTP code, first error lines, and a short docker log tail.
+- Tell the user expected render time before calling `/record`: usually `80–120s`, occasionally up to `180s`.
 
 Suggested VPS validation block:
 
 ```bash
 set -e
 cd /root/celebi-plug
+q_enc="${Q_ENC:?set encoded query, e.g. Ayasofya+Camii}"
 resp_code="$(curl -sS -L -OJ -w '%{http_code}' \
-  'http://127.0.0.1:5001/record?q=Ayasofya+Camii&aspect=16-9&poi=skip&preset=showcase' \
+  "http://127.0.0.1:5001/record?q=${q_enc}&aspect=16-9&poi=skip&preset=showcase" \
   -o /tmp/record_body.bin)"
 echo "http_code=$resp_code"
 if [ "$resp_code" != "200" ]; then
@@ -210,7 +213,7 @@ fi
 ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$latest"
 ```
 
-0. **Token** (only on the very first job; skip on subsequent jobs) — "İlk kurulum için Mapbox public token'ına ihtiyacım var. `pk.` ile başlayan token'ını paylaş — `sk.` ile başlayan secret token'ı kullanma. Token bilgisayarında `.env` dosyasında kalacak, hiçbir sunucuya gitmeyecek." Validate it starts with `pk.`; if it starts with `sk.`, refuse and re-ask. Then persist:
+0. **Token** (during first setup, before recording) — "Kurulumu tamamlamak için Mapbox public token gerekiyor. `pk.` ile başlayan tokenı paylaşabilirsin; `sk.` secret token kullanmayacağım. Token proje `.env` dosyasında kalacak." Validate it starts with `pk.`; if it starts with `sk.`, briefly explain and ask for a public token. Then persist:
 
    - **If the agent has shell access to the celebi-plug directory** (recommended): `echo 'MAPBOX_TOKEN=pk.XXX' > /path/to/celebi-plug/.env`. This is a one-time write — every subsequent shot reuses the same `.env` automatically. No URL hash needed.
    - **If the agent only has URL control:** append `#token=pk.XXX` to the autopilot URL on the first run; on later runs, the token is already in `localStorage` and the hash is omitted.
