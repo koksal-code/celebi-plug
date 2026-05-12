@@ -119,7 +119,7 @@ cd celebi-plug
 echo 'MAPBOX_TOKEN=pk.eyJ1...' > .env       # one-time token write
 docker compose up -d                         # builds and starts (~5 min first time)
 
-curl -OJ 'http://127.0.0.1:5001/record?q=Ayasofya+Camii&aspect=16-9&poi=auto'
+curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip'
 ```
 
 | Param | Notes |
@@ -151,7 +151,7 @@ Notes:
 The left rail has four tabs — all feed the same downstream pipeline:
 
 - **File** — drop a `.geojson` / `.json`. Polygons render as red 3D extrusions; lines and points as red highlights.
-- **Search** — type a place name (e.g. *Sultanahmet Camii*). The Mapbox geocoder resolves it; the radius auto-tunes from `place_type` (address → 30m, neighborhood → 100m, city → 600m). The R input lets you override.
+- **Search** — type a place name. The Mapbox geocoder resolves it; the radius auto-tunes from `place_type` (address → 30m, neighborhood → 100m, city → 600m). The R input lets you override.
 - **Pin** — click anywhere on the map (auto-armed when you switch to this tab), or paste `lat, lon[, radius]`. A persistent draggable marker stays on the dropped pin.
 - **Box** — drag a rectangle on the map; the bbox becomes the polygon.
 
@@ -271,7 +271,7 @@ The studio exposes two non-UI control surfaces so a browser-automation agent can
 ## Deep-link URL
 
 ```bash
-open "http://127.0.0.1:5001/?q=Sultanahmet+Camii&preset=showcase&aspect=9-16&poi=auto&autostart=1"
+open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&preset=showcase&aspect=9-16&poi=skip&autostart=1"
 ```
 
 | Param | Notes |
@@ -287,14 +287,14 @@ open "http://127.0.0.1:5001/?q=Sultanahmet+Camii&preset=showcase&aspect=9-16&poi
 Never put the Mapbox token in the **query string**. The hash fragment `#token=pk.XXX` is safe (browsers don't transmit hash to the server) and can be used for first-run bootstrap when `.env` isn't an option:
 
 ```bash
-open "http://127.0.0.1:5001/?q=Sultanahmet&aspect=9-16&poi=auto&autostart=1#token=pk.XXX"
+open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostart=1#token=pk.XXX"
 ```
 
 ## JS bridge
 
 ```js
 await window.celebiPlug.loadCoordinates([28.9784, 41.0082], 80);
-await window.celebiPlug.search("Sultanahmet", { autoTune: true });
+await window.celebiPlug.search("USER_REQUESTED_PLACE", { autoTune: true });
 window.celebiPlug.setPreset("orbit");
 window.celebiPlug.setAspect("9-16");
 window.celebiPlug.autoPickPois(2);             // closest two

@@ -120,7 +120,7 @@ The extension is `.mp4` on modern Chromium / Safari (H.264 directly from MediaRe
 Once the token is saved in the browser, an agent can drive a full take without clicking. From any terminal:
 
 ```bash
-open "http://127.0.0.1:5001/?q=Sultanahmet+Camii&aspect=9-16&poi=auto&autostart=1"
+open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostart=1"
 # ~60–70 s later, find the file (.mp4 on modern Chromium / Safari, .webm otherwise):
 ls -t ~/Downloads/celebi-plug-* | head -1
 ```
@@ -136,7 +136,7 @@ cd celebi-plug
 echo 'MAPBOX_TOKEN=pk.eyJ1...' > .env       # one-time token write
 docker compose up -d                         # builds once (~5 min), then daemonizes
 
-curl -OJ 'http://127.0.0.1:5001/record?q=Ayasofya+Camii&aspect=16-9&poi=auto'
+curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip'
 ```
 
 Query params on `/record` mirror the autopilot URL (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`) — only `autostart` is implicit (`/record` always records). Response is a streamed recording with `Content-Disposition: attachment`; use `curl -OJ` so the server-provided `.mp4` / `.webm` extension is preserved.
@@ -158,7 +158,7 @@ echo 'MAPBOX_TOKEN=pk.eyJ1...' > /path/to/celebi-plug/.env
 Alternative for agents that don't have shell access to the celebi-plug directory: preload via the URL hash fragment instead. Hash fragments are **never sent to the Flask server**:
 
 ```bash
-open "http://127.0.0.1:5001/?q=Sultanahmet&aspect=9-16&poi=auto&autostart=1#token=pk.XXX"
+open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostart=1#token=pk.XXX"
 ```
 
 The page reads `#token=…`, writes it to `localStorage`, and strips it from the URL. On subsequent calls, omit the hash — the token is already saved. Only public tokens (`pk.`) are accepted in either path.

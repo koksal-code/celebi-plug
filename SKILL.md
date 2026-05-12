@@ -64,7 +64,7 @@ When the user asks for a cinematic video of a place, area, route, landmark, parc
 The left-rail Source block has four tabs that all flow into the same downstream pipeline (POI scan → presets → record):
 
 - **File** — drop a `.geojson` or `.json`. Use this whenever the user supplies an actual file or a known boundary.
-- **Search** — type a place name. Hits the Mapbox Geocoding API and pins the first result; uses the geocoder's `bbox` when it's a sensible size (< 0.4° span), otherwise drops a 150m square at the center. Best for "make a video of Sultanahmet."
+- **Search** — type the user's requested place name. Hits the Mapbox Geocoding API and pins the first result; uses the geocoder's `bbox` when it's a sensible size (< 0.4° span), otherwise drops a 150m square at the center.
 - **Pin** — click on the map (auto-armed when this tab is active) or paste `lat, lon[, radius_m]`. A square polygon of `R` meters (default 80, settable in the input) is synthesized.
 - **Box** — drag a rectangle on the map; the bbox becomes the polygon. Only reachable via the UI tab or the `loadBbox` / `armBboxDraw` JS bridge methods — no URL param.
 
@@ -85,7 +85,7 @@ The studio exposes two non-UI control surfaces so a browser-automation agent can
 2. **URL hash fragment** — `http://127.0.0.1:5001/#token=pk.XXX`. The page reads `#token=…`, writes to `localStorage`, then strips it from the URL via `history.replaceState`. Hash fragments are **never sent to the server** (no Flask log, no proxy). Useful when the agent does not have filesystem access. Can be combined with autopilot params:
 
    ```
-   http://127.0.0.1:5001/?q=Sultanahmet&aspect=9-16&poi=auto&autostart=1#token=pk.XXX
+   http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=auto&autostart=1#token=pk.XXX
    ```
 
 3. **Welcome screen (manual)** — user opens `http://127.0.0.1:5001` once and pastes their `pk.` token. Use only when the agent has neither shell access nor URL control.
@@ -97,7 +97,7 @@ Once the token is reachable, drive the studio through one of three control surfa
 When the agent runs on a VPS or any environment without a graphical browser, run CelebiPlug in Docker (`docker compose up -d`) and call the bundled `/record` endpoint. The container drives a Chromium under Xvfb internally and streams the recorded file back (`.mp4` when H.264 is available, `.webm` fallback otherwise):
 
 ```bash
-curl -OJ 'http://127.0.0.1:5001/record?q=Ayasofya+Camii&aspect=16-9&poi=auto&preset=showcase'
+curl -OJ 'http://127.0.0.1:5001/record?q=<URL_ENCODED_PLACE>&aspect=16-9&poi=skip&preset=showcase'
 ```
 
 Query params mirror the deep-link URL below (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`); `autostart` is implicit. Use `curl -OJ` so the server-provided `.mp4` / `.webm` extension is preserved. The endpoint returns `503` when the Docker render backend isn't available, `400` when no Mapbox token is configured, and `500` with worker stderr on render failure. A 60s shot takes ~80–120s under software WebGL; 36s sparse mode (`poi=skip`) finishes ~50–70s.
@@ -107,7 +107,7 @@ Use this path only when the agent **cannot** open a GUI browser — on a Mac/PC 
 ### Deep-link URL params — useful when launching a fresh tab
 
 ```
-http://127.0.0.1:5001/?q=Tuzla+Mahallesi+Fethiye&preset=showcase&aspect=16-9&poi=auto&autostart=1
+http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&preset=showcase&aspect=16-9&poi=skip&autostart=1
 ```
 
 Source (choose one):
@@ -130,16 +130,25 @@ Trigger:
 
 Never put a Mapbox token in the **query string** (it would hit the server log). Only the `#token=` **hash fragment** form above is safe — browsers do not transmit hash fragments in HTTP requests.
 
-**Agent conversation pattern** — fully chat-native. The agent asks at most four questions, then triggers. The user never has to open the studio UI.
+**Agent conversation pattern** — fully chat-native. During first setup, finish installation first and stop there. Only start a recording after the user explicitly asks for a video.
+
+**First-time install flow**:
+
+1. Clone the repo, or if it already exists, update it with `git pull --ff-only` and report the active commit hash.
+2. Read `README.md`, `install.md`, `AGENTS.md`, and `SKILL.md`.
+3. After reading the files, show the CELEBI-PLUG ASCII banner below and one short setup sentence.
+4. Ask for the Mapbox public token directly: "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım."
+5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
+6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then only say `token hazır`; do not print a masked token unless the user asks for diagnostics.
+7. Install dependencies, start the studio, run a simple health check, and explain the local/VPS URL in one short summary.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
-- Start each run with a short ASCII banner and one-line intent summary.
-- Between major steps (clone/install/start/check/record), post a short status line in plain language.
-- Before first record attempt, report **where the token came from**: `MAPBOX_TOKEN` env, project `.env`, hash-bootstrap, or not found.
-- Never print the raw token; only masked form is allowed (example: `pk.***ABCD`).
-- If a token is already present from a previous run, say that explicitly so the user understands why no new token was asked.
-- If `/root/celebi-plug` (or target dir) already exists, run `git pull --ff-only` before any install/record steps and report the active commit hash.
+- On first setup, show the ASCII banner only after the required repo docs are read.
+- Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
+- Keep token talk minimal. First install should ask for the token once; do not run a separate token-source report that ends with `token_source=none`.
+- Never print the raw token. Prefer saying `token hazır`; use a masked form only for troubleshooting.
+- If a valid token is already present from a previous run, simply say `token hazır` and continue.
 
 Suggested banner:
 
@@ -151,33 +160,9 @@ Suggested banner:
  \____||_____||_____||_____||____/ |___|         |_|    |_____| \___/  \____| 
 ```
 
-Suggested preflight token-source check (`bash`, masked output only):
-
-```bash
-token_src="none"
-token_val=""
-if [ -n "${MAPBOX_TOKEN:-}" ] && printf '%s' "$MAPBOX_TOKEN" | grep -q '^pk\.'; then
-  token_src="env:MAPBOX_TOKEN"
-  token_val="$MAPBOX_TOKEN"
-elif [ -f .env ]; then
-  token_val="$(awk -F= '$1=="MAPBOX_TOKEN"{print $2}' .env | tr -d "\"'[:space:]")"
-  if printf '%s' "$token_val" | grep -q '^pk\.'; then
-    token_src=".env"
-  else
-    token_src="none"
-    token_val=""
-  fi
-fi
-masked="(none)"
-if [ -n "$token_val" ]; then
-  masked="$(printf '%s' "$token_val" | sed -E 's/^(pk\.).*(.{4})$/\1***\2/')"
-fi
-echo "token_source=$token_src token_masked=$masked"
-```
-
 **VPS `/record` run notes**:
 
-- First-time install is token-first. If no valid `pk.` token is present, ask for token early, before a `/record` attempt.
+- First-time install is token-first. Ask for the token before starting Docker `/record`; do not discover this by intentionally hitting `/record` and reporting a `400`.
 - Avoid "probe recordings" with hardcoded place names. Ask the user target first, then record that target.
 - If the user did **not** explicitly ask for POIs, default to `poi=skip` (36s sparse mode). Do not silently switch to `poi=auto`.
 - A successful recording needs HTTP `200` plus a real video file. Keep the report honest if either part fails.
@@ -191,29 +176,36 @@ Suggested VPS validation block:
 ```bash
 set -e
 cd /root/celebi-plug
-q_enc="${Q_ENC:?set encoded query, e.g. Ayasofya+Camii}"
-resp_code="$(curl -sS -L -OJ -w '%{http_code}' \
+q_enc="${Q_ENC:?set encoded query from the user's requested place}"
+resp_code="$(curl -sS -L -D /tmp/record_headers.txt -w '%{http_code}' \
   "http://127.0.0.1:5001/record?q=${q_enc}&aspect=16-9&poi=skip&preset=showcase" \
   -o /tmp/record_body.bin)"
 echo "http_code=$resp_code"
 if [ "$resp_code" != "200" ]; then
   echo "record_failed_http=$resp_code"
+  head -c 400 /tmp/record_body.bin || true
   docker compose logs --tail=120 | sed -n '1,120p'
   exit 1
 fi
-latest="$(ls -t celebi-plug-* 2>/dev/null | head -1)"
-test -n "$latest"
-size="$(stat -c '%s' "$latest")"
-echo "artifact=$latest size=$size"
+ctype="$(awk 'BEGIN{IGNORECASE=1}/^content-type:/{print $2}' /tmp/record_headers.txt | tr -d '\r' | tail -1)"
+case "$ctype" in
+  *mp4*) ext="mp4" ;;
+  *webm*) ext="webm" ;;
+  *) ext="bin" ;;
+esac
+artifact="celebi-plug-record.${ext}"
+mv /tmp/record_body.bin "$artifact"
+size="$(stat -c '%s' "$artifact")"
+echo "artifact=$artifact size=$size"
 if [ "$size" -lt 2000000 ]; then
   echo "record_failed_small_file"
-  ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$latest" || true
+  ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$artifact" || true
   exit 1
 fi
-ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$latest"
+ffprobe -v error -show_entries format=format_name,duration -of default=nk=1:nw=1 "$artifact"
 ```
 
-0. **Token** (during first setup, before recording) — "Kurulumu tamamlamak için Mapbox public token gerekiyor. `pk.` ile başlayan tokenı paylaşabilirsin; `sk.` secret token kullanmayacağım. Token proje `.env` dosyasında kalacak." Validate it starts with `pk.`; if it starts with `sk.`, briefly explain and ask for a public token. Then persist:
+0. **Token** (during first setup, before recording) — "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım." Validate it starts with `pk.`; if it starts with `sk.`, briefly explain and ask for a public token. Then persist:
 
    - **If the agent has shell access to the celebi-plug directory** (recommended): `echo 'MAPBOX_TOKEN=pk.XXX' > /path/to/celebi-plug/.env`. This is a one-time write — every subsequent shot reuses the same `.env` automatically. No URL hash needed.
    - **If the agent only has URL control:** append `#token=pk.XXX` to the autopilot URL on the first run; on later runs, the token is already in `localStorage` and the hash is omitted.
@@ -274,7 +266,7 @@ The agent does not have to expose preset names to the user — it picks the righ
 ```js
 // pick a target — four options, mirroring the UI tabs
 await window.celebiPlug.loadCoordinates([28.9784, 41.0082], 80);
-await window.celebiPlug.search("Sultanahmet, Istanbul");
+await window.celebiPlug.search("USER_REQUESTED_PLACE");
 await window.celebiPlug.loadGeoJson(geojsonObject, "label");
 await window.celebiPlug.loadBbox([west, south, east, north]);
 
