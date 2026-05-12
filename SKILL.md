@@ -140,13 +140,17 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 4. Ask for the Mapbox public token directly: "Kurulumu tamamlamak için Mapbox public tokenını paylaşabilir misin? Token `pk.` ile başlamalı; tam halini ekranda tekrar yazmayacağım."
 5. Validate that the token starts with `pk.`. If it starts with `sk.`, ask for a public token instead.
 6. Write the token to the project `.env` as `MAPBOX_TOKEN=...`, then only say `token hazır`; do not print a masked token unless the user asks for diagnostics.
-7. Install dependencies, start the studio, and run a simple health check.
-8. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local/VPS URL and basic usage in one short summary.
+7. Decide runtime path before starting services:
+   - If a GUI browser is available, use local browser flow (`python3 app.py` + `http://127.0.0.1:5001`) and do not start Docker.
+   - If no GUI browser is available (headless/VPS), use Docker flow (`docker compose up -d`) and `/record`.
+8. Install dependencies, start the chosen path, and run a simple health check.
+9. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local/VPS URL and basic usage in one short summary.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
 - On first setup, show the exact ASCII banner below only when setup is complete, at the very top of the final setup summary.
 - Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
+- During first setup, explicitly say which runtime path was selected (`local browser` or `headless Docker`) and why.
 - Keep token talk minimal. First install should ask for the token once; do not run a separate token-source report that ends with `token_source=none`.
 - Never print the raw token. Prefer saying `token hazır`; use a masked form only for troubleshooting.
 - If a valid token is already present from a previous run, simply say `token hazır` and continue.
@@ -164,6 +168,7 @@ Exact banner:
 **VPS `/record` run notes**:
 
 - First-time install is token-first. Ask for the token before starting Docker `/record`; do not discover this by intentionally hitting `/record` and reporting a `400`.
+- Do not start Docker by default. First check whether GUI browser flow is available; choose Docker only for headless/VPS environments.
 - Avoid "probe recordings" with hardcoded place names. Ask the user target first, then record that target.
 - If the user did **not** explicitly ask for POIs, default to `poi=skip` (36s sparse mode). Do not silently switch to `poi=auto`.
 - A successful recording needs HTTP `200` plus a real video file. Keep the report honest if either part fails.
