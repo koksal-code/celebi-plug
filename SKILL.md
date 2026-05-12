@@ -132,6 +132,48 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 
 **Agent conversation pattern** — fully chat-native. The agent asks at most four questions, then triggers. The user never has to open the studio UI.
 
+**Operator UX contract** — the agent should feel transparent and talkative during execution:
+
+- Start each run with a short ASCII banner and one-line intent summary.
+- Between major steps (clone/install/start/check/record), post a short status line in plain language.
+- Before first record attempt, report **where the token came from**: `MAPBOX_TOKEN` env, project `.env`, hash-bootstrap, or not found.
+- Never print the raw token; only masked form is allowed (example: `pk.***ABCD`).
+- If a token is already present from a previous run, say that explicitly so the user understands why no new token was asked.
+
+Suggested banner:
+
+```text
+  ____     _      _     _  ____  _ _
+ / ___|___| | ___| |__ (_)/ ___|| (_)_ __
+| |   / _ \ |/ _ \ '_ \| | |  _| | | '_ \
+| |__|  __/ |  __/ |_) | | |_| | | | | | |
+ \____\___|_|\___|_.__/|_|\____|_|_|_| |_|
+```
+
+Suggested preflight token-source check (`bash`, masked output only):
+
+```bash
+token_src="none"
+token_val=""
+if [ -n "${MAPBOX_TOKEN:-}" ] && printf '%s' "$MAPBOX_TOKEN" | grep -q '^pk\.'; then
+  token_src="env:MAPBOX_TOKEN"
+  token_val="$MAPBOX_TOKEN"
+elif [ -f .env ]; then
+  token_val="$(awk -F= '$1=="MAPBOX_TOKEN"{print $2}' .env | tr -d "\"'[:space:]")"
+  if printf '%s' "$token_val" | grep -q '^pk\.'; then
+    token_src=".env"
+  else
+    token_src="none"
+    token_val=""
+  fi
+fi
+masked="(none)"
+if [ -n "$token_val" ]; then
+  masked="$(printf '%s' "$token_val" | sed -E 's/^(pk\.).*(.{4})$/\1***\2/')"
+fi
+echo "token_source=$token_src token_masked=$masked"
+```
+
 0. **Token** (only on the very first job; skip on subsequent jobs) — "İlk kurulum için Mapbox public token'ına ihtiyacım var. `pk.` ile başlayan token'ını paylaş — `sk.` ile başlayan secret token'ı kullanma. Token bilgisayarında `.env` dosyasında kalacak, hiçbir sunucuya gitmeyecek." Validate it starts with `pk.`; if it starts with `sk.`, refuse and re-ask. Then persist:
 
    - **If the agent has shell access to the celebi-plug directory** (recommended): `echo 'MAPBOX_TOKEN=pk.XXX' > /path/to/celebi-plug/.env`. This is a one-time write — every subsequent shot reuses the same `.env` automatically. No URL hash needed.
