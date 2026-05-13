@@ -35,6 +35,9 @@
     } else {
       qs.set("text", narrateParam);
     }
+    // Pass video duration so the backend calibrates narration length
+    const dur = params.get("duration") || window.__celebiDuration;
+    if (dur) qs.set("duration", String(dur));
     const resp = await fetch(`/api/narration?${qs}`);
     if (!resp.ok) return null;
     const blob = await resp.blob();

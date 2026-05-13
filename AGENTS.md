@@ -11,12 +11,12 @@ Recording requires a GUI browser with GPU/WebGL and MP4 support. The geo-intel m
 - Every external data source is whitelisted in `legal_guard.py`; aircraft military prefixes and surveillance cameras (MOBESE/KGYS/etc.) are filtered out at this layer
 
 # Overview
-- `app.py` — Flask studio route + `/health` + `/api/{weather,news,aircraft,earthquakes,wildfires,cameras}`; no server-side recording
+- `app.py` — Flask studio route + `/health` + `/api/{weather,news,aircraft,earthquakes,wildfires,wildfire/nearest,cameras}`; `/api/snap/{aircraft,camera,wildfire}`; `/api/narration?duration=`; no server-side recording
 - `cli.py` + `celebi` — minimal argparse CLI that dispatches into `modules/`
 - `legal_guard.py` — source whitelist, forbidden tokens, military / blocked-aircraft filter
-- `providers/` — one adapter per upstream (Open-Meteo, OpenWeather, RSS, NewsAPI, OpenSky, ADS-B.lol, AFAD, Kandilli, USGS, NASA FIRMS, public cameras registry)
-- `modules/` — provider selection by env var with free-default fallback; plus `snap` (single-frame artifact assembly), `narration` (text builder from live bundle), `live` (combined bundle)
-- `utils/` — urllib wrapper + Nominatim/Mapbox geocoder (stdlib), `staticmap` (Mapbox Static Images URL builder), `snapshot` (URL → tmp file), `composite` (Pillow info-card, optional dep), `film` (headed Chrome launcher + Downloads watcher), `tts` (macOS `say` + `afconvert` / Linux `espeak-ng`)
+- `providers/` — one adapter per upstream (Open-Meteo, OpenWeather, RSS, NewsAPI, OpenSky, ADS-B.lol, AFAD, Kandilli, USGS, NASA FIRMS, OSM Overpass, Windy Webcams, YouTube Live)
+- `modules/` — provider selection by env var with free-default fallback; plus `snap` (single-frame artifacts: aircraft/camera/wildfire), `narration` (LLM or template text + duration calibration), `live` (combined bundle), `wildfire` (active fires + nearest hotspot)
+- `utils/` — urllib wrapper + Nominatim/Mapbox geocoder (stdlib), `staticmap` (Mapbox Static Images URL builder), `snapshot` (URL → tmp file), `composite` (Pillow info-card, optional dep), `film` (headed Chrome launcher + Downloads watcher + GeoJSON centroid extractor), `tts` (macOS `say` + `afconvert` / Linux `espeak-ng`)
 - `static/narration.js` — opt-in Web Audio mixer that pipes `/api/narration` audio into MediaRecorder's stream when `?narrate=` URL param is set
 - `templates/index.html` — welcome, studio, HUD, settings, result modal
 - `static/script.js` — Mapbox, input modes, Pilot engine, MediaRecorder, autopilot/API

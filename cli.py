@@ -29,7 +29,7 @@ from modules import narration as narration_mod
 from modules import news as news_mod
 from modules import snap as snap_mod
 from modules import weather as weather_mod
-from modules import wildfire as wildfire_mod
+from modules import wildfire as wildfire_mod  # also used in cmd_film via nearest_hotspot
 from utils import film as film_util
 from utils import snapshot as snapshot_util
 from utils import staticmap
@@ -122,7 +122,17 @@ def _enrich_camera(cam: dict[str, Any], *, with_snapshot: bool) -> dict[str, Any
     lon = cam.get("lon")
     if lat is None or lon is None:
         return cam
-    frame = staticmap.static_image(lat, lon, zoom=14, width=720, height=480)
+    bearing = cam.get("view_bearing_deg")
+    pitch = 45 if bearing is not None else None
+    frame = staticmap.static_image(
+        lat,
+        lon,
+        zoom=14,
+        width=720,
+        height=480,
+        bearing=bearing,
+        pitch=pitch,
+    )
     cam["preview"] = frame
     if with_snapshot:
         # 1) Prefer a real JPEG endpoint when the registry has one.
@@ -137,20 +147,39 @@ def _enrich_camera(cam: dict[str, Any], *, with_snapshot: bool) -> dict[str, Any
 
 
 def cmd_cameras(args: argparse.Namespace) -> int:
-    if args.place:
-        payload = cameras_mod.near_place(args.place, radius_km=args.radius_km)
-        cams = payload.get("cameras", [])
-    elif args.lat is not None and args.lon is not None:
-        cams = cameras_mod.near_coords(args.lat, args.lon, radius_km=args.radius_km)
-        payload = {
-            "lat": args.lat,
-            "lon": args.lon,
-            "radius_km": args.radius_km,
-            "cameras": cams,
-        }
-    else:
-        print("usage: celebi cameras <place> | --lat <> --lon <>", file=sys.stderr)
-        return 2
+    try:
+        if args.place:
+            payload = cameras_mod.near_place(
+                args.place,
+                radius_km=args.radius_km,
+                include_all=args.all,
+                discover=args.discover,
+            )
+            payload["all"] = args.all
+            payload["discover"] = args.discover
+            cams = payload.get("cameras", [])
+        elif args.lat is not None and args.lon is not None:
+            cams = cameras_mod.near_coords(
+                args.lat,
+                args.lon,
+                radius_km=args.radius_km,
+                include_all=args.all,
+                discover=args.discover,
+            )
+            payload = {
+                "lat": args.lat,
+                "lon": args.lon,
+                "radius_km": args.radius_km,
+                "all": args.all,
+                "discover": args.discover,
+                "cameras": cams,
+            }
+        else:
+            print("usage: celebi cameras <place> | --lat <> --lon <>", file=sys.stderr)
+            return 2
+    except ValueError as exc:
+        _print({"error": str(exc)})
+        return 1
 
     for cam in cams:
         _enrich_camera(cam, with_snapshot=args.snapshot)
@@ -183,9 +212,9 @@ def cmd_snap_aircraft(args: argparse.Namespace) -> int:
 
 def cmd_snap_camera(args: argparse.Namespace) -> int:
     if args.place:
-        payload = snap_mod.snap_camera(args.place, radius_km=args.radius_km)
+        payload = snap_mod.snap_camera(args.place, radius_km=args.radius_km, discover=args.discover)
     elif args.lat is not None and args.lon is not None:
-        payload = snap_mod.snap_camera(lat=args.lat, lon=args.lon, radius_km=args.radius_km)
+        payload = snap_mod.snap_camera(lat=args.lat, lon=args.lon, radius_km=args.radius_km, discover=args.discover)
     else:
         print("usage: celebi snap-camera <place> | --lat <> --lon <>", file=sys.stderr)
         return 2
@@ -193,17 +222,52 @@ def cmd_snap_camera(args: argparse.Namespace) -> int:
     return 0 if payload.get("snapshot_path") or not payload.get("error") else 1
 
 
+def cmd_snap_wildfire(args: argparse.Namespace) -> int:
+    payload = snap_mod.snap_wildfire(args.place)
+    _print(payload)
+    return 0 if not payload.get("error") else 1
+
+
 def cmd_film(args: argparse.Namespace) -> int:
     import time as _time
     base = args.base_url.rstrip("/")
+
+    place = args.place
+    lat: float | None = args.lat
+    lon: float | None = args.lon
+
+    # --wildfire: find nearest fire hotspot and fly there
+    wildfire_place = getattr(args, "wildfire", None)
+    if wildfire_place:
+        hotspot = wildfire_mod.nearest_hotspot(wildfire_place)
+        if hotspot is None:
+            _print({"error": f"no active fires found near {wildfire_place}"})
+            return 1
+        lat, lon = hotspot["lat"], hotspot["lon"]
+        place = place or wildfire_place
+        if not args.narrate:
+            args.narrate = "auto"
+
+    # --geojson: extract centroid from GeoJSON file
+    geojson_path = getattr(args, "geojson", None)
+    if geojson_path:
+        center = film_util.extract_center_from_geojson(geojson_path)
+        if center is None:
+            _print({"error": f"could not extract coordinates from {geojson_path}"})
+            return 1
+        lat, lon = center
+        if not args.narrate:
+            args.narrate = "auto"
+
     narrate = None
     if args.narrate:
         narrate = "auto" if args.narrate == "auto" else args.narrate
+
     url = film_util.build_autopilot_url(
         base,
-        place=args.place,
-        lat=args.lat,
-        lon=args.lon,
+        place=place,
+        lat=lat,
+        lon=lon,
         radius=args.radius,
         aspect=args.aspect,
         preset=args.preset,
@@ -227,7 +291,7 @@ def cmd_film(args: argparse.Namespace) -> int:
         "size_bytes": mp4.stat().st_size,
         "url": url,
         "narrated": bool(narrate),
-        "place": args.place,
+        "place": place,
         "aspect": args.aspect,
         "preset": args.preset,
     }
@@ -328,6 +392,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_c.add_argument("--lat", type=float)
     p_c.add_argument("--lon", type=float)
     p_c.add_argument("--radius-km", dest="radius_km", type=float, default=50.0)
+    p_c.add_argument("--all", action="store_true", help="Return all curated public cameras, ignore radius filter")
+    p_c.add_argument("--discover", action="store_true", help="Discover additional public webcams from OSM/Windy/YouTube")
     p_c.add_argument("--snapshot", action="store_true", help="Save a single-frame still per camera and return the path")
     p_c.add_argument("--open", action="store_true", help="Open the first camera's live URL in the default browser")
     p_c.set_defaults(func=cmd_cameras)
@@ -349,7 +415,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_sc.add_argument("--lat", type=float)
     p_sc.add_argument("--lon", type=float)
     p_sc.add_argument("--radius-km", dest="radius_km", type=float, default=100.0)
+    p_sc.add_argument("--discover", action="store_true", help="Include discovered public webcams when picking a frame")
     p_sc.set_defaults(func=cmd_snap_camera)
+
+    p_sf = sub.add_parser("snap-wildfire", help="Composite PNG: nearest active fire hotspot pin on map + NASA FIRMS card")
+    p_sf.add_argument("place", help="Region to search for fires (e.g. 'Antalya')")
+    p_sf.set_defaults(func=cmd_snap_wildfire)
 
     p_film = sub.add_parser("film", help="Drive the studio autopilot and return the recorded MP4 path")
     p_film.add_argument("place", nargs="?")
@@ -361,6 +432,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_film.add_argument("--poi", default="skip", help="skip | auto | auto:N | names:A,B")
     p_film.add_argument("--duration", type=int, help="seconds — override default 36/60")
     p_film.add_argument("--narrate", help="auto | <text> — TTS narration baked into MP4")
+    p_film.add_argument("--wildfire", metavar="PLACE", help="Find nearest NASA FIRMS fire near PLACE and fly there with narration")
+    p_film.add_argument("--geojson", metavar="FILE", help="GeoJSON file — extract centroid and film that location")
     p_film.add_argument("--base-url", default="http://127.0.0.1:5001")
     p_film.add_argument("--timeout", type=float, default=180.0)
     p_film.set_defaults(func=cmd_film)

@@ -21,6 +21,7 @@ from utils import composite, snapshot, staticmap
 
 from . import aircraft as aircraft_mod
 from . import cameras as cameras_mod
+from . import wildfire as wildfire_mod
 
 
 def _fmt(value: Any, unit: str = "", digits: int = 0) -> str:
@@ -113,20 +114,103 @@ def snap_aircraft(callsign: str, *, output: Path | None = None) -> dict[str, Any
     return payload
 
 
-def snap_camera(place: str | None = None, *, lat: float | None = None, lon: float | None = None,
-                radius_km: float = 100.0, output: Path | None = None) -> dict[str, Any]:
+def snap_wildfire(place: str, *, output: Path | None = None) -> dict[str, Any]:
+    """Composite PNG: nearest active fire hotspot pin on map + NASA FIRMS info card."""
+    hotspot = wildfire_mod.nearest_hotspot(place)
+    if not hotspot:
+        return {"error": f"no active fires within 500 km of {place}", "place": place}
+
+    lat, lon = hotspot["lat"], hotspot["lon"]
+    frame = staticmap.static_image(lat, lon, zoom=11, width=900, height=600)
+    web_link = staticmap.web_link(lat, lon, zoom=11)
+
+    payload: dict[str, Any] = {
+        "place": hotspot["place"],
+        "hotspot": hotspot,
+        "map": frame,
+        "web_link": web_link,
+        "snapshot_path": None,
+        "card_path": None,
+    }
+
+    if not frame.get("is_image"):
+        return payload
+
+    bg = snapshot.download(frame["url"])
+    if bg is None:
+        return payload
+    payload["snapshot_path"] = str(bg)
+
+    if composite.is_available():
+        frp = hotspot.get("frp")
+        conf = hotspot.get("confidence")
+        total = hotspot.get("total_fires")
+        dist = hotspot.get("distance_from_center_km")
+        place_short = hotspot["place"].split(",")[0]
+        lines = [
+            f"Lat/Lon     {lat:.4f}, {lon:.4f}",
+            f"FRP         {_fmt(frp, ' MW')}  (fire radiative power)",
+            f"Confidence  {conf if conf is not None else '—'}%",
+            f"Active fires {total} hotspots in area",
+            f"Dist from {place_short}  {dist} km",
+            f"Acquired    {hotspot.get('acquired_at') or '—'}",
+            f"Satellite   {hotspot.get('satellite') or 'MODIS/VIIRS'}",
+        ]
+        out = output or Path(tempfile.mkstemp(prefix="celebi-fire-", suffix=".png")[1])
+        card = composite.compose_card(
+            bg,
+            title=f"ACTIVE FIRE · {place_short.upper()}",
+            subtitle="CelebiPlug · NASA FIRMS · public-domain",
+            lines=lines,
+            output=out,
+        )
+        if card is not None:
+            payload["card_path"] = str(card)
+            sidecar = card.with_suffix(".json")
+            sidecar.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+                encoding="utf-8",
+            )
+            payload["json_path"] = str(sidecar)
+    return payload
+
+
+def snap_camera(
+    place: str | None = None,
+    *,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_km: float = 100.0,
+    discover: bool = False,
+    output: Path | None = None,
+) -> dict[str, Any]:
     if place:
-        bundle = cameras_mod.near_place(place, radius_km=radius_km)
+        bundle = cameras_mod.near_place(place, radius_km=radius_km, discover=discover)
         cams = bundle["cameras"]
         anchor = (bundle["lat"], bundle["lon"])
     elif lat is not None and lon is not None:
-        cams = cameras_mod.near_coords(lat, lon, radius_km=radius_km)
+        cams = cameras_mod.near_coords(lat, lon, radius_km=radius_km, discover=discover)
         anchor = (lat, lon)
     else:
         return {"error": "provide place or lat/lon"}
 
+    # Auto-discover when registry has no results within radius
+    if not cams and not discover:
+        try:
+            if place:
+                auto_bundle = cameras_mod.near_place(
+                    place, radius_km=radius_km * 3, discover=True
+                )
+                cams = auto_bundle["cameras"]
+            else:
+                cams = cameras_mod.near_coords(
+                    anchor[0], anchor[1], radius_km=radius_km * 3, discover=True
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
     if not cams:
-        return {"error": f"no public camera registered within {radius_km} km", "anchor": anchor}
+        return {"error": f"no public camera found within {radius_km} km", "anchor": anchor}
 
     cam = cams[0]
     cam_lat, cam_lon = cam["lat"], cam["lon"]

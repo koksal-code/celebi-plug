@@ -7,13 +7,14 @@ studio so the agent can deliver a finished .mp4 file instead of a URL.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 
 def _chrome_launch_command() -> list[str] | None:
@@ -92,6 +93,59 @@ def launch_browser(url: str) -> bool:
     except (OSError, FileNotFoundError):
         return False
     return True
+
+
+def extract_center_from_geojson(path: str | Path) -> tuple[float, float] | None:
+    """Return the (lat, lon) centroid of all coordinates in a GeoJSON file.
+
+    Supports FeatureCollection, Feature, and all geometry types. Returns
+    ``None`` if the file cannot be read or contains no coordinates.
+    """
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        coords = _collect_geojson_coords(data)
+        if not coords:
+            return None
+        lats = [c[1] for c in coords]
+        lons = [c[0] for c in coords]
+        return (sum(lats) / len(lats), sum(lons) / len(lons))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _collect_geojson_coords(obj: Any) -> list[list[float]]:
+    if not isinstance(obj, dict):
+        return []
+    t = obj.get("type")
+    if t == "FeatureCollection":
+        out: list[list[float]] = []
+        for f in obj.get("features") or []:
+            out.extend(_collect_geojson_coords(f))
+        return out
+    if t == "Feature":
+        return _collect_geojson_coords(obj.get("geometry") or {})
+    if t == "Point":
+        c = obj.get("coordinates")
+        return [c] if isinstance(c, list) and len(c) >= 2 else []
+    if t in ("LineString", "MultiPoint"):
+        return [c for c in (obj.get("coordinates") or []) if isinstance(c, list) and len(c) >= 2]
+    if t in ("Polygon", "MultiLineString"):
+        out = []
+        for ring in obj.get("coordinates") or []:
+            out.extend(c for c in ring if isinstance(c, list) and len(c) >= 2)
+        return out
+    if t == "MultiPolygon":
+        out = []
+        for poly in obj.get("coordinates") or []:
+            for ring in poly:
+                out.extend(c for c in ring if isinstance(c, list) and len(c) >= 2)
+        return out
+    if t == "GeometryCollection":
+        out = []
+        for g in obj.get("geometries") or []:
+            out.extend(_collect_geojson_coords(g))
+        return out
+    return []
 
 
 def watch_downloads(

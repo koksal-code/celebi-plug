@@ -242,20 +242,43 @@ def _attach_camera_preview(cam: dict) -> dict:
     lat, lon = cam.get("lat"), cam.get("lon")
     if lat is None or lon is None:
         return cam
-    cam["preview"] = staticmap.static_image(lat, lon, zoom=14, width=720, height=480)
+    bearing = cam.get("view_bearing_deg")
+    pitch = 45 if bearing is not None else None
+    cam["preview"] = staticmap.static_image(
+        lat,
+        lon,
+        zoom=14,
+        width=720,
+        height=480,
+        bearing=bearing,
+        pitch=pitch,
+    )
     return cam
 
 
 @app.route("/api/cameras")
 def api_cameras():
     radius_km = request.args.get("radius_km", type=float) or 50.0
+    include_all = _truthy(request.args.get("all"))
+    discover = _truthy(request.args.get("discover"))
     with_preview = _truthy(request.args.get("map")) or _truthy(request.args.get("preview"))
     mode, lat, lon, place = _coords_or_place()
     try:
         if mode == "coords":
-            cams = cameras_mod.near_coords(lat, lon, radius_km=radius_km)
+            cams = cameras_mod.near_coords(
+                lat,
+                lon,
+                radius_km=radius_km,
+                include_all=include_all,
+                discover=discover,
+            )
         elif mode == "place":
-            payload = cameras_mod.near_place(place, radius_km=radius_km)
+            payload = cameras_mod.near_place(
+                place,
+                radius_km=radius_km,
+                include_all=include_all,
+                discover=discover,
+            )
             cams = payload["cameras"]
         else:
             return _err("provide ?lat=&lon= or ?q=<place>")
@@ -265,8 +288,17 @@ def api_cameras():
         for cam in cams:
             _attach_camera_preview(cam)
     if mode == "place":
+        payload["all"] = include_all
+        payload["discover"] = discover
         return jsonify(payload)
-    return jsonify({"lat": lat, "lon": lon, "radius_km": radius_km, "cameras": cams})
+    return jsonify({
+        "lat": lat,
+        "lon": lon,
+        "radius_km": radius_km,
+        "all": include_all,
+        "discover": discover,
+        "cameras": cams,
+    })
 
 
 @app.route("/api/live")
@@ -351,15 +383,46 @@ def api_snap_aircraft():
 @app.route("/api/snap/camera")
 def api_snap_camera():
     radius_km = request.args.get("radius_km", type=float) or 100.0
+    discover = _truthy(request.args.get("discover"))
     mode, lat, lon, place = _coords_or_place()
     if mode == "place":
-        payload = snap_mod.snap_camera(place, radius_km=radius_km)
+        payload = snap_mod.snap_camera(place, radius_km=radius_km, discover=discover)
     elif mode == "coords":
-        payload = snap_mod.snap_camera(lat=lat, lon=lon, radius_km=radius_km)
+        payload = snap_mod.snap_camera(lat=lat, lon=lon, radius_km=radius_km, discover=discover)
     else:
         return _err("provide ?lat=&lon= or ?q=<place>")
     status = 200 if not payload.get("error") else 404
     return jsonify(payload), status
+
+
+@app.route("/api/snap/wildfire")
+def api_snap_wildfire():
+    """Nearest active fire hotspot snap for a region.
+
+    Returns a satellite map PNG path + NASA FIRMS metadata.
+    ``?q=Antalya`` → find nearest fire near Antalya, build composite card.
+    """
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return _err("provide ?q=<place>")
+    payload = snap_mod.snap_wildfire(q)
+    status = 200 if not payload.get("error") else 404
+    return jsonify(payload), status
+
+
+@app.route("/api/wildfire/nearest")
+def api_wildfire_nearest():
+    """Return the single nearest high-confidence fire hotspot for a region.
+
+    ``?q=Antalya`` → lat/lon + FRP + confidence of nearest MODIS/VIIRS pixel.
+    """
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return _err("provide ?q=<place>")
+    hotspot = wildfire_mod.nearest_hotspot(q)
+    if hotspot is None:
+        return _err(f"no active fires found near {q}", 404)
+    return jsonify(hotspot)
 
 
 @app.route("/api/narration")
@@ -369,17 +432,19 @@ def api_narration():
     Query: ``?text=<...>`` to TTS a literal string, ``?q=<place>&auto=1``
     to auto-build narration from the live bundle, ``?text=&dry=1`` to just
     return the generated text without invoking the local TTS engine.
+    Optional ``&duration=<seconds>`` calibrates text length to the video.
     """
     explicit_text = request.args.get("text", "").strip()
     place = (request.args.get("q") or "").strip()
     lang = (request.args.get("lang") or "tr").strip()
     auto = _truthy(request.args.get("auto"))
     dry = _truthy(request.args.get("dry"))
+    duration = request.args.get("duration", type=float)
 
     if explicit_text:
         text = explicit_text
     elif (auto or place) and place:
-        text = narration_mod.auto_text_for(place, lang=lang)
+        text = narration_mod.auto_text_for(place, lang=lang, duration_seconds=duration)
     else:
         return _err("provide ?text=<...> or ?q=<place>&auto=1")
 
