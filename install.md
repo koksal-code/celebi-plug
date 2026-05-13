@@ -165,6 +165,8 @@ curl 'http://127.0.0.1:5001/api/aircraft?callsign=TK1923'
 curl 'http://127.0.0.1:5001/api/earthquakes?min=2'
 curl 'http://127.0.0.1:5001/api/wildfires?q=Manavgat'
 curl 'http://127.0.0.1:5001/api/cameras?q=Fethiye'
+curl 'http://127.0.0.1:5001/api/cameras?q=Fethiye&all=1'
+curl 'http://127.0.0.1:5001/api/cameras?q=Fethiye&discover=1'      # OSM/Windy/YouTube discovery
 ```
 
 The repo also ships a `./celebi` bash wrapper that calls the same modules from the terminal:
@@ -176,14 +178,17 @@ The repo also ships a `./celebi` bash wrapper that calls the same modules from t
 ./celebi earthquake --min 3
 ./celebi wildfire --place "Manavgat"
 ./celebi cameras "Fethiye"
+./celebi cameras "Fethiye" --all           # local registry only
+./celebi cameras "Fethiye" --discover      # OSM/Windy/YouTube discovery
 
 # Single-frame artifact delivery
 ./celebi snap-aircraft TK1923          # PNG: satellite + pin + info card
 ./celebi snap-camera "Fethiye"         # PNG: real frame if available, satellite fallback
+./celebi snap-camera "Fethiye" --discover
 ./celebi map "Fethiye" --snapshot      # PNG: satellite still of the place
 
 # Cinematic MP4 delivery (drives the studio autopilot, returns the path)
-./celebi film "Fethiye Ölüdeniz" --aspect 9-16 --duration 36
+./celebi film "Fethiye" --aspect 9-16 --duration 36
 ./celebi film "Fethiye" --narrate auto # MP4 with built-in TTS narration
 
 # Narration only (text + AAC audio file)
@@ -200,6 +205,14 @@ pip install Pillow
 ```
 
 Without Pillow, snap returns the raw PNG plus a JSON sidecar with the metadata — the chat client can lay them out side-by-side.
+
+### Optional: `yt-dlp` for YouTube Live camera discovery
+
+`--discover` is API-key free for OpenStreetMap. It can also discover public YouTube live webcams when `yt-dlp` is installed and available on PATH.
+
+Windy discovery remains optional and only activates when `WINDY_WEBCAMS_API_KEY` is set.
+
+The open-source repo ships without hard-coded camera URLs. Put your own curated feeds in `camera_registry.local.json` or set `CELEBI_CAMERA_REGISTRY=/path/to/cameras.json`; local registry files are gitignored.
 
 ### Optional: narration TTS engine
 
@@ -226,7 +239,7 @@ Defaults are free and require no token:
 | Aircraft | OpenSky anon → ADS-B.lol | `OPENSKY_USERNAME` / `OPENSKY_PASSWORD` for higher rate |
 | Earthquakes | AFAD → Kandilli → USGS | `CELEBI_EARTHQUAKE_PROVIDERS=...` to reorder |
 | Wildfires | NASA FIRMS 24h global CSV | `FIRMS_MAP_KEY` |
-| Cameras | Curated public registry only | (add rows to [`providers/cameras.py`](providers/cameras.py)) |
+| Cameras | Empty local registry | `--discover` for OSM + Windy + YouTube public webcams (`WINDY_WEBCAMS_API_KEY` optional, `yt-dlp` optional) + optional `camera_registry.local.json` |
 
 Legal guard: every record is filtered through [`legal_guard.py`](legal_guard.py), which rejects MOBESE / KGYS / private surveillance cameras and military / blocked aircraft. New sources must be whitelisted there before they can surface data.
 

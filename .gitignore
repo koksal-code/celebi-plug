@@ -12,6 +12,7 @@ env/
 instance/
 .env
 .env.*
+camera_registry.local.json
 
 # Editor
 .vscode/

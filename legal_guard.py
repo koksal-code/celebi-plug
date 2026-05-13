@@ -55,6 +55,9 @@ _WHITELIST: dict[str, dict[str, SourcePolicy]] = {
         "kgm-official": SourcePolicy("kgm-official", "public-traffic-camera", True),
         "tourism-cam": SourcePolicy("tourism-cam", "tourism-public-feed", True),
         "national-park": SourcePolicy("national-park", "park-authority-feed", True),
+        "osm-webcam": SourcePolicy("osm-webcam", "ODbL-1.0", True),
+        "windy-webcams": SourcePolicy("windy-webcams", "tos-compliant", True),
+        "youtube-live": SourcePolicy("youtube-live", "platform-tos-compliant", True),
     },
 }
 

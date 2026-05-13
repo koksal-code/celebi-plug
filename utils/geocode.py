@@ -39,7 +39,10 @@ def geocode(place: str) -> dict:
                 return _geocode_mapbox(place, token)
             except (HttpError, GeocodeError):
                 pass  # fall through to OSM
-    return _geocode_osm(place)
+    try:
+        return _geocode_osm(place)
+    except HttpError as exc:
+        raise GeocodeError(f"geocoding unavailable: {exc}") from exc
 
 
 def _geocode_osm(place: str) -> dict:

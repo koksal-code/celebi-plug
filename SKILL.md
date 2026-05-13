@@ -7,7 +7,7 @@ description: Day-to-day rules for working on CelebiPlug — running the Flask st
 
 CelebiPlug is a single-page Flask + JavaScript app that turns GeoJSON into cinematic 3D drone-style videos (60s full Pilot or 36s sparse no-POI mode). It runs entirely in the browser on top of **Mapbox GL JS v3**, using a user-supplied Mapbox **public** token (`pk.…`) for satellite imagery, `mapbox-terrain-dem-v1` 3D terrain, and `composite/building` fill-extrusion 3D buildings.
 
-Alongside the recording studio, the same Flask process exposes six **geo-intelligence side modules** — weather, news, aircraft, earthquakes, wildfires, and public cameras — under `/api/*` and via a `./celebi` CLI. The defaults are free/open data (Open-Meteo, RSS, OpenSky, AFAD/Kandilli/USGS, NASA FIRMS, OpenStreetMap Nominatim, a curated public-camera registry); tokens are only needed to switch providers. None of these modules touch the recording pipeline.
+Alongside the recording studio, the same Flask process exposes six **geo-intelligence side modules** — weather, news, aircraft, earthquakes, wildfires, and public cameras — under `/api/*` and via a `./celebi` CLI. The defaults are free/open data (Open-Meteo, RSS, OpenSky, AFAD/Kandilli/USGS, NASA FIRMS, OpenStreetMap Nominatim, and public camera discovery); tokens are only needed to switch providers. None of these modules touch the recording pipeline.
 
 For first-time install and Mapbox token bootstrap, read `install.md`. This file covers everything *after* the studio is up.
 
@@ -373,6 +373,8 @@ GET /api/aircraft?callsign=<code>          # or ?q=&radius_km=  or ?lat=&lon=&ra
 GET /api/earthquakes?min=<mag>&limit=
 GET /api/wildfires?q=<place>               # or ?bbox=west,south,east,north
 GET /api/cameras?q=<place>&radius_km=      # or ?lat=&lon=
+GET /api/cameras?q=<place>&all=1           # all local-registry cameras (ignore radius)
+GET /api/cameras?q=<place>&discover=1      # include OSM/Windy/YouTube public camera discovery
 ```
 
 Errors come back as `{"error": "..."}` with the matching HTTP status. The Flask process is loopback-only (`is_local_request`), so these endpoints are never exposed to the network.
@@ -388,6 +390,8 @@ Errors come back as `{"error": "..."}` with the matching HTTP status. The Flask 
 ./celebi earthquake --min 3
 ./celebi wildfire --place "Manavgat"
 ./celebi cameras "Fethiye"
+./celebi cameras "Fethiye" --all
+./celebi cameras "Fethiye" --discover
 ```
 
 The wrapper prefers `VIRTUAL_ENV/bin/python`, then `.venv/bin/python`, then system `python3`. Output is JSON on stdout.
@@ -401,7 +405,7 @@ The wrapper prefers `VIRTUAL_ENV/bin/python`, then `.venv/bin/python`, then syst
 | Aircraft | `OpenSkyProvider` | `AdsbLolProvider` | `CELEBI_AIRCRAFT_PROVIDER=adsb-lol`; optional `OPENSKY_USERNAME` / `OPENSKY_PASSWORD` |
 | Earthquakes | `AfadProvider` → `KandilliProvider` → `UsgsProvider` | — | `CELEBI_EARTHQUAKE_PROVIDERS=afad,kandilli,usgs` (chain order) |
 | Wildfires | `NasaFirmsProvider` (24h CSV) | — | optional `FIRMS_MAP_KEY` |
-| Cameras | `OfficialCamerasProvider` (curated registry) | — | extend `providers/cameras.py` and whitelist in `legal_guard.py` |
+| Cameras | `OfficialCamerasProvider` (empty local registry) | `OSMWebcamsProvider` + `WindyWebcamsProvider` + `YouTubeLiveCamerasProvider` (`--discover`) | add user feeds to gitignored `camera_registry.local.json`; new source ids still need `legal_guard.py` |
 
 Geocoder default is OpenStreetMap Nominatim; set `CELEBI_GEOCODER=mapbox` (and have a `pk.` token available) to route through Mapbox geocoding instead.
 
@@ -412,7 +416,7 @@ Every provider declares its `(category, source_id)` at construction time. `legal
 - Aircraft with military callsign prefixes (`RCH`, `PAT`, `SAM`, `GAF`, `TURAF`, `NATO`, …) and PIA/LADD/blocked flags.
 - Camera entries whose name or operator matches `mobese`, `kgys`, `surveillance`, `private-cctv`, `police-cam`, or `law-enforcement`.
 
-When the user asks for "kameralar" / "trafik kameraları" / "city cam", check `providers/cameras.py` first. If the desired feed is not there, do **not** scrape it — explain that CelebiPlug only surfaces curated public/official cameras and offer to add an entry that meets the whitelist criteria.
+When the user asks for "kameralar" / "trafik kameraları" / "city cam", use `--discover` first. If they want a persistent curated feed, add it to `camera_registry.local.json` or `CELEBI_CAMERA_REGISTRY`, not to `providers/cameras.py`.
 
 When the user asks for an aircraft by callsign that matches a military prefix, refuse and explain the policy in one short line.
 
@@ -424,6 +428,8 @@ If the user has already finished install, mix the modules into your replies as s
 - "Bugün son depremler?" → `./celebi earthquake --min 2 --limit 5`.
 - "Manavgat'ta yangın var mı?" → `./celebi wildfire --place "Manavgat"`.
 - "Antalya yakınında kamera?" → `./celebi cameras "Antalya" --radius-km 100`.
+- "Bende kayıtlı tüm kameraları ver" → `./celebi cameras "Antalya" --all` (local registry only; place is an anchor for distance sorting).
+- "Bölgede internette açık webcam bul" → `./celebi cameras "Antalya" --radius-km 100 --discover` (OSM + Windy + YouTube Live keşfi).
 
 These are read-only commands and safe to run inline. Don't use them as a replacement for the recording flow — when the user asks for a *video*, fall back to the studio autopilot in the section above.
 
@@ -448,7 +454,7 @@ The geo-intel modules are designed to be used **during conversation**, not as st
 | "üzerimde uçak var mı", "yakın uçaklar" | `./celebi aircraft --place "<place>" --radius-km 80 --map` | Top 3 by altitude/distance, with origin country + per-aircraft map URL. |
 | "deprem oldu mu", "son depremler", "Türkiye deprem" | `./celebi earthquake --min 2 --limit 5` | Magnitude + location + relative time. Mention source (AFAD/Kandilli/USGS). |
 | "yangın var mı", "FIRMS", "wildfire" | `./celebi wildfire --place "<place>"` | Count + closest fire distance. If 0, say so plainly. |
-| "kamera", "canlı yayın", "live cam" | `./celebi cameras "<place>" --radius-km 100` | List name + operator + URL. Refuse if the user asks for MOBESE/KGYS — explain whitelist policy in one line. |
+| "kamera", "canlı yayın", "live cam" | `./celebi cameras "<place>" --radius-km 100` | List name + operator + URL. If present, include `view_hint` / `view_compass`. Use `--discover` for wider OSM/Windy/YouTube coverage. Refuse if the user asks for MOBESE/KGYS — explain whitelist policy in one line. |
 | "şu kameranın görüntüsünü gönder", "tek karelik foto" | `./celebi cameras "<place>" --snapshot` | Returns `snapshot_path` per camera (satellite still of the camera's location when the source has no JPEG endpoint). |
 | "bana <yeri> canlı göster" | `./celebi live "<place>" --snapshot` | One-paragraph summary: weather, fire/quake counts, kameralar (with URL), `snapshot_path` (Mapbox satellite still) — single chat-ready bundle. |
 | "haritada göster", "uydudan göster" | `./celebi map "<place>" --snapshot` | Returns `map.url` (Mapbox satellite still) + saved PNG path. |
@@ -482,7 +488,7 @@ The agent's job in the chat is to ATTACH the artifact, not paste a URL. Three co
 | User asks | Command | Deliverable |
 |---|---|---|
 | "şu uçağın haritasını gönder" / "TKxxxx nerede, foto" | `./celebi snap-aircraft <callsign>` | `card_path` (composite PNG when Pillow installed) **or** `snapshot_path` + `json_path` sidecar |
-| "Fethiye'de canlı kameraya bak, görüntüsünü gönder" | `./celebi snap-camera "<place>"` | `snapshot_path` PNG — real live frame when the registry has a JPEG URL, satellite still otherwise. `card_path` if Pillow is installed. |
+| "Antalya'da canlı kameraya bak, görüntüsünü gönder" | `./celebi snap-camera "<place>"` | `snapshot_path` PNG — real live frame when the local registry/discovery result has a JPEG URL, satellite still otherwise. `card_path` if Pillow is installed. |
 | "bana Fethiye'nin videosunu çek ve gönder" | `./celebi film "<place>" --aspect 9-16 --narrate auto` | `mp4_path` — full 36/60s cinematic MP4 (with TTS audio if `--narrate` is set). |
 
 After running the command, parse the JSON result and **attach the file at `card_path`/`snapshot_path`/`mp4_path` to the chat reply.** Do not paste the path as text; the goal is the user sees the image/video inline.
@@ -491,9 +497,9 @@ If Pillow isn't installed, snap commands still deliver `snapshot_path` (raw PNG)
 
 **Narration (browser-native, no ffmpeg):**
 
-`celebi film --narrate auto` builds a 10-second narration script from the live geo-intel bundle (e.g. *"Çelebi Fethiye üstünde. Sıcaklık 24 derece. Rüzgâr 9 km/h. Yakında 9 aktif termal nokta var. Canlı kamera: Ölüdeniz Belcekız Plajı. Cinematic uçuş başlıyor."*), TTS-synthesises it locally (macOS `say` → AAC; Linux `espeak-ng` → WAV), and the studio mixes it into the recording via Web Audio → MediaRecorder. The .mp4 ships with H.264 + AAC, single file, no merge step.
+`celebi film --narrate auto` builds a 10-second narration script from the live geo-intel bundle (e.g. *"Çelebi Fethiye üstünde. Sıcaklık 24 derece. Rüzgâr 9 km/h. Yakında 9 aktif termal nokta var. Cinematic uçuş başlıyor."*), TTS-synthesises it locally (macOS `say` → AAC; Linux `espeak-ng` → WAV), and the studio mixes it into the recording via Web Audio → MediaRecorder. The .mp4 ships with H.264 + AAC, single file, no merge step.
 
-Override the script with explicit text: `--narrate "Lütfen Ölüdeniz'in cinematic uçuşunu izleyin"`. Without a local TTS engine the recording is silent (the rest of the pipeline still works).
+Override the script with explicit text: `--narrate "Lütfen bu kıyı uçuşunu izleyin"`. Without a local TTS engine the recording is silent (the rest of the pipeline still works).
 
 **Images and single-frame snapshots:**
 
@@ -510,7 +516,7 @@ The `live` subcommand is the canonical "bana <yeri> canlı göster" handler. Its
 ```
 Fethiye şu an 25°C, 10 km/h batı rüzgârı, dalga 0.6m — denize uygun.
 Son 24 saat: aktif yangın 0, çevrede deprem 0.
-Canlı kamera (Fethiye Belediyesi): https://www.fethiye.bel.tr/canli-yayin
+Canlı kamera (public feed): https://example.com/public-webcam
 Uydu görüntüsü (tek kare): /tmp/celebi-snapshot-abc.png
 ```
 
