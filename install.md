@@ -1,8 +1,8 @@
 # CelebiPlug Install Guide
 
-CelebiPlug is a local Flask app that records cinematic Mapbox 3D shots directly in the browser. Installation is intentionally small: Python, one Flask dependency, and a Mapbox public token.
+CelebiPlug is a local Flask app that records cinematic Mapbox 3D shots directly in the browser **and** exposes a small geo-intelligence API and CLI (weather, news, aircraft, earthquakes, wildfires, public cameras). Installation is intentionally small: Python, one Flask dependency, and a Mapbox public token for the recording studio.
 
-No FFmpeg, backend renderer, account system, or secret token is required.
+No FFmpeg, backend renderer, account system, secret token, or extra Python package is required. The geo-intelligence modules use only the standard library on top of free public data sources — every additional token is optional.
 
 ## Requirements
 
@@ -121,6 +121,8 @@ open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostar
 ls -t ~/Downloads/celebi-plug-* | head -1
 ```
 
+Keep the recording browser visible. If an agent launches Chrome, use a foreground window or disable background throttling; otherwise browsers may produce a too-short MP4. Always verify duration before reporting success.
+
 ### GUI runtime
 
 CelebiPlug records only when the runtime has a GUI browser, GPU/WebGL, and MP4/H.264 support.
@@ -150,12 +152,91 @@ The page reads `#token=…`, writes it to `localStorage`, and strips it from the
 
 Full deep-link reference (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`/`autostart`) and the in-page `window.celebiPlug` JS API are documented in [`SKILL.md`](SKILL.md).
 
-## Verification
+## Geo-intelligence modules (optional, all token-free by default)
 
-With the virtual environment active, verify the Python entry point:
+When the Flask process is running, six side modules become available alongside the studio. They share the same `127.0.0.1:5001` port and only accept loopback requests — nothing is exposed to the network.
 
 ```bash
-python3 -m py_compile app.py
+# All endpoints return JSON.
+curl 'http://127.0.0.1:5001/health'
+curl 'http://127.0.0.1:5001/api/weather?q=Fethiye'
+curl 'http://127.0.0.1:5001/api/news?q=Antalya'
+curl 'http://127.0.0.1:5001/api/aircraft?callsign=TK1923'
+curl 'http://127.0.0.1:5001/api/earthquakes?min=2'
+curl 'http://127.0.0.1:5001/api/wildfires?q=Manavgat'
+curl 'http://127.0.0.1:5001/api/cameras?q=Fethiye'
+```
+
+The repo also ships a `./celebi` bash wrapper that calls the same modules from the terminal:
+
+```bash
+./celebi weather "Fethiye"
+./celebi news "Fethiye"
+./celebi aircraft TK1923
+./celebi earthquake --min 3
+./celebi wildfire --place "Manavgat"
+./celebi cameras "Fethiye"
+
+# Single-frame artifact delivery
+./celebi snap-aircraft TK1923          # PNG: satellite + pin + info card
+./celebi snap-camera "Fethiye"         # PNG: real frame if available, satellite fallback
+./celebi map "Fethiye" --snapshot      # PNG: satellite still of the place
+
+# Cinematic MP4 delivery (drives the studio autopilot, returns the path)
+./celebi film "Fethiye Ölüdeniz" --aspect 9-16 --duration 36
+./celebi film "Fethiye" --narrate auto # MP4 with built-in TTS narration
+
+# Narration only (text + AAC audio file)
+./celebi narrate --place "Fethiye" --lang tr
+./celebi narrate "Selam Çelebi" --lang tr
+```
+
+### Optional: composite info cards on snap PNGs
+
+Snap commands deliver a satellite still by default. Install **Pillow** to bake a CelebiPlug-style info card (callsign / altitude / speed / source) onto the same image:
+
+```bash
+pip install Pillow
+```
+
+Without Pillow, snap returns the raw PNG plus a JSON sidecar with the metadata — the chat client can lay them out side-by-side.
+
+### Optional: narration TTS engine
+
+`celebi narrate` and `celebi film --narrate` use whichever local TTS engine is on PATH:
+
+- **macOS** — built-in `say` + `afconvert` produce AAC in `.m4a`. No install needed.
+- **Linux** — `apt install espeak-ng` (or `espeak`) for WAV output.
+- **Windows** — narration is a noop today; the recording is delivered silent.
+
+The narration is mixed into the recording in the browser via Web Audio → MediaRecorder, so no ffmpeg is involved.
+
+The wrapper auto-selects the project's Python (`VIRTUAL_ENV`, then `.venv/bin/python`, then `python3`). Symlink it into `~/.local/bin/` to drop the `./` prefix:
+
+```bash
+ln -s "$(pwd)/celebi" ~/.local/bin/celebi
+```
+
+Defaults are free and require no token:
+
+| Module | Default | Optional upgrade |
+|---|---|---|
+| Weather | Open-Meteo | `CELEBI_WEATHER_PROVIDER=openweather` + `OPENWEATHER_API_KEY` |
+| News | RSS (TRT · Hürriyet · NTV · BBC · Reuters) | `CELEBI_NEWS_PROVIDER=newsapi` + `NEWSAPI_KEY` |
+| Aircraft | OpenSky anon → ADS-B.lol | `OPENSKY_USERNAME` / `OPENSKY_PASSWORD` for higher rate |
+| Earthquakes | AFAD → Kandilli → USGS | `CELEBI_EARTHQUAKE_PROVIDERS=...` to reorder |
+| Wildfires | NASA FIRMS 24h global CSV | `FIRMS_MAP_KEY` |
+| Cameras | Curated public registry only | (add rows to [`providers/cameras.py`](providers/cameras.py)) |
+
+Legal guard: every record is filtered through [`legal_guard.py`](legal_guard.py), which rejects MOBESE / KGYS / private surveillance cameras and military / blocked aircraft. New sources must be whitelisted there before they can surface data.
+
+## Verification
+
+With the virtual environment active, verify the Python entry point and the geo-intel modules:
+
+```bash
+python3 -m py_compile app.py cli.py legal_guard.py
+python3 -m py_compile providers/*.py modules/*.py utils/*.py
 ```
 
 Then start the server:
@@ -164,13 +245,14 @@ Then start the server:
 python3 app.py
 ```
 
-In a second terminal, check the page headers:
+In a second terminal, check the page headers and the geo-intel health probe:
 
 ```bash
 curl -I http://127.0.0.1:5001
+curl  http://127.0.0.1:5001/health
 ```
 
-You should see an HTTP `200` response from Flask.
+You should see an HTTP `200` response from Flask and a JSON payload listing the registered providers per module.
 
 ## Troubleshooting
 

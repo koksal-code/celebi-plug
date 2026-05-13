@@ -1676,6 +1676,25 @@ function pickRecordingMimeType() {
 
 function codecTagForMime() { return "MP4 · H.264"; }
 
+function getVideoDurationSeconds(blob) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const url = URL.createObjectURL(blob);
+    const cleanup = () => URL.revokeObjectURL(url);
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      const duration = Number.isFinite(video.duration) ? video.duration : 0;
+      cleanup();
+      resolve(duration);
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error("recording duration could not be verified"));
+    };
+    video.src = url;
+  });
+}
+
 async function recordCinematicRoute(options = {}) {
   const shouldDownload = options.download !== false;
   if (!geojsonLoaded || !map || isRecording) return null;
@@ -1699,7 +1718,10 @@ async function recordCinematicRoute(options = {}) {
     drawRecordFrame({ opacity: 0, color: "rgba(0,0,0,0)" });
 
     recordedChunks = [];
-    const stream = recordCanvas.captureStream(fps);
+    let stream = recordCanvas.captureStream(fps);
+    if (window.celebiNarration && typeof window.celebiNarration.attach === "function") {
+      try { stream = (await window.celebiNarration.attach(stream)) || stream; } catch (_) { /* keep silent stream */ }
+    }
     const mimeType = systemCheck.mimeType;
     resultMime = mimeType;
     mediaRecorder = new MediaRecorder(stream, {
@@ -1737,6 +1759,16 @@ async function recordCinematicRoute(options = {}) {
 
     if (recordedChunks.length) {
       resultBlob = new Blob(recordedChunks, { type: resultMime });
+      const recordedSeconds = await getVideoDurationSeconds(resultBlob);
+      const expectedSeconds = cinematicDuration / 1000;
+      if (recordedSeconds < expectedSeconds * 0.8) {
+        resultBlob = null;
+        setStatus(
+          `Recording too short (${recordedSeconds.toFixed(1)}s). Keep the recording browser visible and try again.`,
+          true,
+        );
+        return null;
+      }
       if (shouldDownload) triggerDownload(resultBlob);
       const durSec = Math.round(cinematicDuration / 1000);
       setStatus(`${durSec}s cinematic capture downloaded (${codecTagForMime(resultMime)}).`);
@@ -1747,6 +1779,9 @@ async function recordCinematicRoute(options = {}) {
     setStatus(`Recording failed: ${error.message}`, true);
   } finally {
     isRecording = false;
+    if (window.celebiNarration && typeof window.celebiNarration.detach === "function") {
+      try { window.celebiNarration.detach(); } catch (_) { /* ignore */ }
+    }
     mapWrapEl.classList.remove("is-recording");
     recordRouteBtn.classList.remove("is-armed");
     const labelEl = recordRouteBtn.querySelector(".btn-record-label");
@@ -1848,6 +1883,9 @@ async function maybeRunAutopilot() {
   const lat = parseFloat(params.get("lat"));
   const lon = parseFloat(params.get("lon"));
   const q = params.get("q");
+  // Expose the active place to opt-in modules (e.g. narration) without
+  // coupling them to the autopilot internals.
+  if (q) window.__celebiCurrentPlace = q;
 
   // Coordinate wins when both supplied — explicit beats inferred.
   if (Number.isFinite(lat) && Number.isFinite(lon)) {

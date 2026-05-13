@@ -466,6 +466,7 @@
       window.__CELEBI_ENV_TOKEN__ = {{ env_token|default('', true)|tojson }};
     </script>
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+    <script src="{{ url_for('static', filename='narration.js') }}"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
   </body>
 </html>

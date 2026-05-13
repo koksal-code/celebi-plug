@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# CelebiPlug CLI wrapper — runs cli.py with the project's interpreter.
+# Prefers an activated virtualenv, then a local .venv, then system python3.
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -n "${VIRTUAL_ENV:-}" ] && [ -x "$VIRTUAL_ENV/bin/python" ]; then
+  PY="$VIRTUAL_ENV/bin/python"
+elif [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  PY="$SCRIPT_DIR/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="python3"
+else
+  echo "celebi: python3 not found on PATH" >&2
+  exit 127
+fi
+
+exec "$PY" "$SCRIPT_DIR/cli.py" "$@"

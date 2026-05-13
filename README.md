@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Geo-cinema for GeoJSON.</strong><br/>
-  Cinematic 3D drone shots directly from your browser.
+  Cinematic 3D drone shots directly from your browser — plus a local geo-intelligence API and CLI.
 </p>
 
 <p align="center">
@@ -74,6 +74,7 @@ GeoJSON dropped in
 - 🤖 Agent autopilot — chat can open a GUI browser with `?q=...&poi=skip&autostart=1` or use the `window.celebiPlug` JS API
 - 🚫 No server-side rendering, no token-handling endpoint
 - 🌐 Turkish, German, and English onboarding
+- 🧩 Geo-intelligence side modules — weather, news, aircraft, earthquakes, wildfires, public cameras — exposed as `/api/*` endpoints and a `celebi` CLI, all with free/open-data defaults
 
 ---
 
@@ -266,7 +267,13 @@ graph TD
 
 ```text
 .
-├── app.py
+├── app.py                # Flask: studio route + /api/* geo-intel endpoints
+├── cli.py                # argparse entrypoint
+├── celebi                # bash wrapper that runs cli.py with the project python
+├── legal_guard.py        # central source whitelist + record filters
+├── providers/            # one tiny adapter per upstream
+├── modules/              # provider selection + fallback chains
+├── utils/                # urllib + geocode helpers (stdlib only)
 ├── requirements.txt
 ├── templates/index.html
 ├── static/script.js
@@ -278,6 +285,84 @@ graph TD
 ├── README.md
 └── LICENSE
 ```
+
+The studio core (Mapbox 3D + MediaRecorder + Pilot preset + `window.celebiPlug`) is in `templates/index.html` + `static/script.js` and is **not touched** by the geo-intel modules.
+
+---
+
+# Geo-Intelligence Modules
+
+Six modular providers ship alongside the studio. Every default is **token-free** (Open-Meteo, RSS, OpenSky, AFAD, Kandilli, NASA FIRMS, OpenStreetMap Nominatim). Bring your own token only when you want to switch providers.
+
+| Module | Default (free) | Optional | Switch via |
+|---|---|---|---|
+| Weather | Open-Meteo | OpenWeather | `CELEBI_WEATHER_PROVIDER=openweather` + `OPENWEATHER_API_KEY` |
+| News | RSS (TRT · Hürriyet · NTV · BBC · Reuters) | NewsAPI | `CELEBI_NEWS_PROVIDER=newsapi` + `NEWSAPI_KEY` |
+| Aircraft | OpenSky | ADS-B.lol | `CELEBI_AIRCRAFT_PROVIDER=adsb-lol` |
+| Earthquakes | AFAD → Kandilli → USGS | — | `CELEBI_EARTHQUAKE_PROVIDERS=usgs,afad` |
+| Wildfires | NASA FIRMS (MODIS 24h CSV) | — | optional `FIRMS_MAP_KEY` |
+| Cameras | Curated public registry (KGM, Fethiye, IBB, Uludağ MP) | — | (add entries in [`providers/cameras.py`](providers/cameras.py)) |
+
+All modules pass through [`legal_guard.py`](legal_guard.py), which:
+
+- whitelists every source with its license tag
+- drops aircraft with military callsign prefixes (RCH, SAM, GAF, TURAF, NATO…) and PIA/LADD opt-outs
+- refuses MOBESE / KGYS / surveillance cameras and any source matching forbidden tokens
+
+---
+
+# Local API
+
+The Flask process binds to `127.0.0.1:5001` and only accepts loopback requests.
+
+```text
+GET /health
+GET /api/weather?q=Fethiye               # or ?lat=36.65&lon=29.12 [&marine=1]
+GET /api/news?q=Antalya&limit=10
+GET /api/aircraft?callsign=TK1923        # or ?lat=&lon=&radius_km=
+GET /api/earthquakes?min=2&limit=20
+GET /api/wildfires?q=Manavgat            # or ?bbox=west,south,east,north
+GET /api/cameras?q=Fethiye&radius_km=50  # or ?lat=&lon=
+```
+
+Sample:
+
+```bash
+curl 'http://127.0.0.1:5001/api/weather?q=Fethiye&marine=1'
+curl 'http://127.0.0.1:5001/api/earthquakes?min=3'
+```
+
+---
+
+# CLI
+
+`./celebi` is a one-line bash wrapper around `cli.py`. It prefers an activated virtualenv, falls back to `.venv/bin/python`, then to `python3`.
+
+```bash
+./celebi weather "Fethiye"                  # Open-Meteo via Nominatim
+./celebi weather --lat 36.65 --lon 29.12 --marine
+./celebi news "Antalya" --limit 10
+./celebi aircraft TK1923
+./celebi aircraft --place "Fethiye" --radius-km 80
+./celebi earthquake --min 3
+./celebi wildfire --place "Manavgat"
+./celebi cameras "Fethiye"
+
+# Artifact delivery — files, not links
+./celebi snap-aircraft TK1923                       # PNG composite (Mapbox satellite + pin + info card)
+./celebi snap-camera "Fethiye"                      # one-frame PNG (real JPEG if registry has it, else satellite fallback)
+./celebi film "Fethiye Ölüdeniz" --aspect 9-16      # full cinematic MP4 via the studio autopilot
+./celebi film "Fethiye" --narrate auto              # MP4 with TTS narration baked in (no ffmpeg)
+./celebi narrate --place "Fethiye" --lang tr        # standalone narration text + .m4a/.wav file
+```
+
+Add the project root to your `PATH` (or symlink `celebi` into `~/.local/bin/`) to drop the `./` prefix.
+
+`snap-aircraft` and `snap-camera` deliver a satellite still + JSON sidecar by default. Install **Pillow** (`pip install Pillow`) to bake the metadata into the PNG as an orange-bracket info card — the same visual language as the studio HUD.
+
+`film` drives the existing studio recorder (no headless workaround, no ffmpeg) — it opens a real GUI Chrome at the autopilot URL, polls `~/Downloads` for the `celebi-plug-*.mp4`, and returns the path so the agent can attach it to chat directly.
+
+The CLI prints JSON to stdout — pipe it through `jq` for human reading.
 
 ---
 
@@ -300,6 +385,8 @@ open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&preset=showcase&aspect=9-16&p
 | `radius=` | meters; overrides auto-tune. |
 | `poi=` | `skip` (no POIs · 36s sparse) · `auto` or `auto:N` · `names:A,B`. |
 | `autostart=1` | wait for tiles, record, download — no result modal. |
+
+Agent recordings should keep the browser visible. If Chrome is launched by automation, disable background throttling and verify the MP4 duration before reporting success.
 
 Never put the Mapbox token in the **query string**. The hash fragment `#token=pk.XXX` is safe (browsers don't transmit hash to the server) and can be used for first-run bootstrap when `.env` isn't an option:
 
