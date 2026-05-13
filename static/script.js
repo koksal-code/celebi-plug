@@ -1934,6 +1934,13 @@ async function maybeRunAutopilot() {
     }
   }
 
+  // ?duration=<seconds> — override recording length (minimum 3s)
+  const durationParam = parseFloat(params.get("duration"));
+  if (Number.isFinite(durationParam) && durationParam >= 3) {
+    setActiveDuration(Math.round(durationParam * 1000));
+    window.__celebiDuration = durationParam;
+  }
+
   if (params.get("autostart") === "1" && geojsonLoaded) {
     // give Mapbox a beat to load tiles for the new center
     await new Promise((r) => window.setTimeout(r, 1500));
