@@ -8,12 +8,8 @@ No FFmpeg, backend renderer, account system, or secret token is required.
 
 - macOS, Linux, or Windows
 - Python 3.10 or newer
-- A modern Chromium-based browser (134+) or Safari 16+ is recommended — these record directly to `.mp4` (H.264). Older browsers fall back to `.webm`.
+- A GUI browser with WebGL/GPU acceleration and MP4/H.264 MediaRecorder support
 - A Mapbox public access token that starts with `pk.`
-
-Optional:
-
-- `ffmpeg` only if you need to convert a `.webm` fallback take to `.mp4` later. Not needed on modern Chromium / Safari, which already write `.mp4` natively.
 
 ## 1. Get the project
 
@@ -113,7 +109,7 @@ Downloaded files are named:
 celebi-plug-showcase-2026-05-11T12-00-00-000Z.mp4
 ```
 
-The extension is `.mp4` on modern Chromium / Safari (H.264 directly from MediaRecorder), `.webm` on browsers without an H.264 encoder (e.g. Firefox). No conversion step runs in either case.
+The output is always `.mp4`. If the browser cannot record MP4/H.264, the studio disables recording instead of producing a fallback file.
 
 ## Agent autopilot (one-shot from a terminal)
 
@@ -121,17 +117,18 @@ Once the token is saved in the browser, an agent can drive a full take without c
 
 ```bash
 open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostart=1"
-# ~60–70 s later, find the file (.mp4 on modern Chromium / Safari, .webm otherwise):
+# ~60–70 s later, find the MP4 file:
 ls -t ~/Downloads/celebi-plug-* | head -1
 ```
 
-### Local-only runtime
+### GUI runtime
 
-CelebiPlug is local-browser only.
+CelebiPlug records only when the runtime has a GUI browser, GPU/WebGL, and MP4/H.264 support.
 
-- Use a local GUI browser with WebGL/GPU support.
-- Start `python3 app.py` and record in-studio at `http://127.0.0.1:5001`.
-- `/record` is disabled in this build.
+- Start `python3 app.py` and use `http://127.0.0.1:5001`.
+- If GUI/GPU/MP4 checks fail, the agent should say: `GPU/GUI yok, Çelebi uçuş yapamaz. Kurulumu iptal ediyorum; kurulumdan kalan dosyaları sileyim mi?`
+- Cleanup should only happen after the user confirms.
+- Agents record through the studio, autopilot URL, or `window.celebiPlug.record()`.
 
 ### Chat-native install (no welcome screen at all)
 
@@ -152,19 +149,6 @@ open "http://127.0.0.1:5001/?q=<URL_ENCODED_PLACE>&aspect=9-16&poi=skip&autostar
 The page reads `#token=…`, writes it to `localStorage`, and strips it from the URL. On subsequent calls, omit the hash — the token is already saved. Only public tokens (`pk.`) are accepted in either path.
 
 Full deep-link reference (`q`/`lat`/`lon`/`radius`/`preset`/`aspect`/`poi`/`autostart`) and the in-page `window.celebiPlug` JS API are documented in [`SKILL.md`](SKILL.md).
-
-## Optional: Convert WebM to MP4
-
-Usually unnecessary — on Chromium 134+ and Safari the take is already `.mp4`. If you ended up on the `.webm` fallback path (Firefox) and another platform requires MP4, convert it locally:
-
-```bash
-ffmpeg -i celebi-plug-pilot-*.webm \
-  -c:v libx264 \
-  -crf 18 \
-  -preset slow \
-  -pix_fmt yuv420p \
-  output.mp4
-```
 
 ## Verification
 
@@ -220,7 +204,7 @@ Check that:
 
 ### Recording is unavailable
 
-CelebiPlug records with the browser `MediaRecorder` API and `canvas.captureStream(30)`. Modern Chromium (134+) and Safari 16+ encode straight to `.mp4` (H.264); older browsers fall back to `.webm` (VP9). If neither codec is exposed (very old browser, missing WebGL), recording is unavailable — use a current Chromium-based browser.
+CelebiPlug records with the browser `MediaRecorder` API and `canvas.captureStream(30)`. Recording requires a GUI browser on the same machine with WebGL/GPU acceleration and MP4/H.264 encoder support. If the system check fails, use a current Chromium-based browser or Safari on a machine with GUI/GPU support.
 
 ### GeoJSON does not appear
 

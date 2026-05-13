@@ -19,7 +19,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Mapbox-3D-black?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/MP4_/_WebM-H.264_/_VP9-blue?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/MP4-H.264-blue?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Flask-Minimal-green?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/License-MIT-orange?style=for-the-badge"/>
 </p>
@@ -36,7 +36,7 @@
 
 CelebiPlug turns a place — a GeoJSON file, a search query, a map pin, or a drag-rectangle — into a cinematic 3D drone-style shot directly inside your browser.
 
-It uses Mapbox satellite imagery, 3D terrain, 3D buildings, the Pilot cinematic preset, and the browser’s MediaRecorder API to export a **36- or 60-second video** at **30 fps** (`.mp4` / H.264 on modern Chromium / Safari; `.webm` / VP9 fallback on browsers without an MP4 encoder).
+It uses Mapbox satellite imagery, 3D terrain, 3D buildings, the Pilot cinematic preset, and the browser’s MediaRecorder API to export a **36- or 60-second MP4/H.264 video** at **30 fps**. Recording happens in a GUI browser with WebGL/GPU and MP4 encoder support; an agent can drive that browser by URL autopilot or the `window.celebiPlug` API.
 
 - No server-side rendering
 - No FFmpeg dependency
@@ -55,8 +55,8 @@ GeoJSON dropped in
    │      60s · 5 scenes · 2 rotations
    │      fade-to-black scene cuts
    │
-    └─► celebi-plug-pilot-*.mp4   (or .webm on the fallback path)
-          12 Mbps · H.264 / VP9
+    └─► celebi-plug-pilot-*.mp4
+          12 Mbps · H.264
 ```
 
 ---
@@ -68,10 +68,10 @@ GeoJSON dropped in
 - 🧭 Auto-tuned framing — radius scales from geocoder `place_type` (address → tight; city → wide)
 - 🎯 Draggable corner handles on synthetic shapes — dial the framing without re-running search
 - 🎬 Pilot cinematic preset, with a 60s default and a 36s sparse mode (no POI)
-- 🎥 Browser-native recording at 12 Mbps, 30 fps (modern Chromium / Safari: MP4/H.264; WebM/VP9 fallback)
+- 🎥 Browser-native MP4/H.264 recording at 12 Mbps, 30 fps
 - 🌑 Fade-to-black scene transitions
 - 🎞 Result modal — preview the take, download, or re-record with/without POIs
-- 🤖 Agent autopilot — deep-link URL (`?q=...&poi=skip&autostart=1`) and `window.celebiPlug` JS API
+- 🤖 Agent autopilot — chat can open a GUI browser with `?q=...&poi=skip&autostart=1` or use the `window.celebiPlug` JS API
 - 🚫 No server-side rendering, no token-handling endpoint
 - 🌐 Turkish, German, and English onboarding
 
@@ -158,13 +158,13 @@ http://127.0.0.1:5001
 
 ---
 
-# Local-Only Requirement
+# GUI Runtime Requirement
 
-CelebiPlug now supports local GUI-browser workflow only.
+CelebiPlug records only when the runtime has a GUI browser, GPU/WebGL, and MP4/H.264 support.
 
-- Use a local machine with a modern browser and working WebGL/GPU acceleration.
-- Start with `python3 app.py` and open `http://127.0.0.1:5001`.
-- `/record` is disabled in this local-only build.
+- Start `python3 app.py` and use `http://127.0.0.1:5001`.
+- If GUI/GPU/MP4 checks fail: `GPU/GUI yok, Çelebi uçuş yapamaz. Kurulumu iptal ediyorum; kurulumdan kalan dosyaları sileyim mi?`
+- Server-side recording is disabled; use the studio, autopilot URL, or `window.celebiPlug.record()`.
 
 ---
 
@@ -213,26 +213,11 @@ Preview the camera path before committing. Click again to stop — preview is a 
 
 After recording the take auto-plays in the modal. From here:
 
-- **Download** — save the `.mp4` (or `.webm` on the fallback path).
+- **Download** — save the `.mp4`.
 - **+ With POIs** — auto-pick the 2 closest POIs (if none selected) and re-record at 60s.
 - **No POI · 36s** — clear POIs and re-record the sparse 3-scene Pilot.
 
 Esc closes the modal and frees the blob URL.
-
----
-
-## 6. Convert to MP4 if Needed
-
-Usually unnecessary — on Chromium 134+ and Safari the take is already `.mp4`. The conversion below is only for the WebM fallback path (e.g. Firefox):
-
-```bash
-ffmpeg -i celebi-plug-pilot-*.webm \
-  -c:v libx264 \
-  -crf 18 \
-  -preset slow \
-  -pix_fmt yuv420p \
-  out.mp4
-```
 
 ---
 
@@ -272,7 +257,7 @@ graph TD
     F --> G[Camera Presets]
     G --> H[Real-time Preview]
     H --> I[MediaRecorder]
-    I --> J[MP4 / WebM Export]
+    I --> J[MP4 Export]
 ```
 
 ---

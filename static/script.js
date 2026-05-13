@@ -124,6 +124,19 @@ const presetLabels = {
   "top-down": "Top-down",
 };
 
+const mp4MimeCandidates = [
+  "video/mp4;codecs=avc1.42E01F,mp4a.40.2",
+  "video/mp4;codecs=avc1,mp4a",
+  "video/mp4;codecs=avc1",
+  "video/mp4",
+];
+
+let systemCheck = {
+  ok: false,
+  mimeType: "",
+  message: "system check pending",
+};
+
 // ----- composite canvas for recording with overlay transitions -----
 const recordCanvas = document.createElement("canvas");
 const recordCtx = recordCanvas.getContext("2d");
@@ -160,7 +173,7 @@ const translations = {
     "hero.kicker": "[01] görev brifingi",
     "hero.title.line2": "<em>Geo-cinema</em> motoru",
     "hero.lead":
-      "GeoJSON'dan sinematik 3D drone çekimi. Mapbox uydu + 3D arazi. Tarayıcıdan 36-60 sn video (MP4/H.264, WebM/VP9 fallback).",
+      "GeoJSON'dan sinematik 3D drone çekimi. Mapbox uydu + 3D arazi. Lokal GUI tarayıcıdan 36-60 sn MP4/H.264 video.",
     "step.1": "Mapbox public token (<code>pk.</code>) ekle.",
     "step.2": "GeoJSON dosyanı yükle, POI'lerini seç.",
     "step.3": "Preset ve en-boy oranı seç, kaydet.",
@@ -190,7 +203,7 @@ const translations = {
     "hero.kicker": "[01] missionsbriefing",
     "hero.title.line2": "<em>Geo-cinema</em>-Engine",
     "hero.lead":
-      "Kinematische 3D-Drohnenaufnahmen aus GeoJSON. Mapbox-Satellit + 3D-Gelände. 36-60s Video direkt im Browser (MP4/H.264, WebM/VP9 fallback).",
+      "Kinematische 3D-Drohnenaufnahmen aus GeoJSON. Mapbox-Satellit + 3D-Gelände. 36-60s MP4/H.264 direkt im lokalen GUI-Browser.",
     "step.1": "Mapbox-Public-Token (<code>pk.</code>) hinzufügen.",
     "step.2": "GeoJSON hochladen, POIs auswählen.",
     "step.3": "Preset und Seitenverhältnis wählen, aufnehmen.",
@@ -221,7 +234,7 @@ const translations = {
     "hero.kicker": "[01] mission brief",
     "hero.title.line2": "<em>Geo-cinema</em> engine",
     "hero.lead":
-      "Cinematic 3D drone shots from GeoJSON. Mapbox satellite + 3D terrain. A 36-60s browser recording (MP4/H.264, WebM/VP9 fallback).",
+      "Cinematic 3D drone shots from GeoJSON. Mapbox satellite + 3D terrain. A 36-60s MP4/H.264 recording from a local GUI browser.",
     "step.1": "Add a Mapbox public token (<code>pk.</code>).",
     "step.2": "Upload your GeoJSON, pick POIs.",
     "step.3": "Choose a preset and aspect ratio, capture.",
@@ -353,16 +366,17 @@ init();
 async function init() {
   applyTranslations(activeLang);
   fadeEl = document.getElementById("viewfinder-fade");
+  systemCheck = runSystemCheck();
 
   mapboxTokenInput.value = initialMapboxToken;
   mapboxTokenStudioInput.value = initialMapboxToken;
 
   startWelcomeClock();
 
-  if (initialMapboxToken) {
+  if (initialMapboxToken && systemCheck.ok) {
     await openStudioWithToken(initialMapboxToken);
   } else {
-    setTokenStatus(t("status.token.awaiting"));
+    setTokenStatus(systemCheck.ok ? t("status.token.awaiting") : systemCheck.message);
     welcomeScreen.classList.remove("hidden");
     studioScreen.classList.add("hidden");
   }
@@ -370,6 +384,32 @@ async function init() {
   bindUi();
   exposeAgentApi();
   if (map) await maybeRunAutopilot();
+}
+
+function runSystemCheck() {
+  const failures = [];
+  const host = window.location.hostname;
+  const localHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (!localHost) failures.push("open from localhost/127.0.0.1");
+
+  const probe = document.createElement("canvas");
+  const gl = probe.getContext("webgl2") || probe.getContext("webgl");
+  if (!gl) failures.push("WebGL/GPU unavailable");
+
+  if (typeof MediaRecorder === "undefined" || typeof HTMLCanvasElement.prototype.captureStream !== "function") {
+    failures.push("browser recording unavailable");
+  }
+
+  const mimeType = pickRecordingMimeType();
+  if (!mimeType) failures.push("MP4/H.264 recording unavailable");
+
+  return {
+    ok: failures.length === 0,
+    mimeType,
+    message: failures.length
+      ? `GPU/GUI yok, Çelebi uçuş yapamaz. (${failures.join(" · ")})`
+      : "system check passed · GUI/GPU · MP4/H.264",
+  };
 }
 
 function startWelcomeClock() {
@@ -474,6 +514,14 @@ function bindUi() {
 }
 
 async function onTokenSubmit(rawToken) {
+  systemCheck = runSystemCheck();
+  if (!systemCheck.ok) {
+    setTokenStatus(systemCheck.message);
+    setStatus(systemCheck.message, true);
+    setRouteControls(false, "Çelebi uçuş yapamaz");
+    return;
+  }
+
   const token = rawToken.trim();
   if (!token.startsWith("pk.")) {
     setTokenStatus(t("status.token.invalid"));
@@ -489,6 +537,11 @@ async function onTokenSubmit(rawToken) {
 
 async function openStudioWithToken(token) {
   if (map) return;
+  systemCheck = runSystemCheck();
+  if (!systemCheck.ok) {
+    setTokenStatus(systemCheck.message);
+    return;
+  }
 
   mapboxgl.accessToken = token;
 
@@ -499,6 +552,7 @@ async function openStudioWithToken(token) {
   await initializeMap();
   installMapPinHandler();
   updateCanvasLayout();
+  setTokenStatus(systemCheck.message);
   setRouteControls(false, "awaiting source");
 }
 
@@ -1191,11 +1245,12 @@ function openSettings() { studioSettingsEl.classList.remove("hidden"); }
 function closeSettings() { studioSettingsEl.classList.add("hidden"); }
 
 function setRouteControls(enabled, statusText) {
-  recordRouteBtn.disabled = !enabled || isRecording;
-  previewRouteBtn.disabled = !enabled || isRecording;
-  if (routeStatusEl) routeStatusEl.textContent = statusText;
+  const canUseStudio = Boolean(enabled && systemCheck.ok);
+  recordRouteBtn.disabled = !canUseStudio || isRecording;
+  previewRouteBtn.disabled = !canUseStudio || isRecording;
+  if (routeStatusEl) routeStatusEl.textContent = systemCheck.ok ? statusText : "Çelebi uçuş yapamaz";
   routeProgressEl.style.width = `${Math.round(routeProgress * 100)}%`;
-  if (hudStateEl && !isRecording) hudStateEl.textContent = enabled ? "READY" : "STANDBY";
+  if (hudStateEl && !isRecording) hudStateEl.textContent = canUseStudio ? "READY" : "STANDBY";
 }
 
 function updateRouteProgressLayer() {
@@ -1611,43 +1666,24 @@ function playCinematicRoute() {
 }
 
 function pickRecordingMimeType() {
-  const candidates = [
-    "video/mp4;codecs=avc1.42E01F,mp4a.40.2",
-    "video/mp4;codecs=avc1,mp4a",
-    "video/mp4;codecs=avc1",
-    "video/mp4",
-    "video/webm;codecs=vp9,opus",
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm",
-  ];
-
-  for (const mime of candidates) {
+  for (const mime of mp4MimeCandidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(mime)) {
       return mime;
     }
   }
-  return "video/webm";
+  return "";
 }
 
-function extensionForMime(mime) {
-  return (mime || "").toLowerCase().includes("mp4") ? "mp4" : "webm";
-}
-
-function codecTagForMime(mime) {
-  const lc = (mime || "").toLowerCase();
-  if (lc.includes("mp4")) return "MP4 · H.264";
-  if (lc.includes("vp9")) return "WebM · VP9";
-  if (lc.includes("vp8")) return "WebM · VP8";
-  return "WebM";
-}
+function codecTagForMime() { return "MP4 · H.264"; }
 
 async function recordCinematicRoute(options = {}) {
   const shouldDownload = options.download !== false;
   if (!geojsonLoaded || !map || isRecording) return null;
   const canvas = map.getCanvas();
-  if (!canvas || typeof canvas.captureStream !== "function" || typeof MediaRecorder === "undefined") {
-    setStatus("MediaRecorder not supported in this browser.", true);
+  systemCheck = runSystemCheck();
+  if (!systemCheck.ok || !canvas || typeof canvas.captureStream !== "function") {
+    setStatus(systemCheck.message, true);
+    setRouteControls(false, "Çelebi uçuş yapamaz");
     return null;
   }
 
@@ -1664,7 +1700,7 @@ async function recordCinematicRoute(options = {}) {
 
     recordedChunks = [];
     const stream = recordCanvas.captureStream(fps);
-    const mimeType = pickRecordingMimeType();
+    const mimeType = systemCheck.mimeType;
     resultMime = mimeType;
     mediaRecorder = new MediaRecorder(stream, {
       mimeType,
@@ -1715,11 +1751,10 @@ async function recordCinematicRoute(options = {}) {
     recordRouteBtn.classList.remove("is-armed");
     const labelEl = recordRouteBtn.querySelector(".btn-record-label");
     if (labelEl) labelEl.textContent = "Record";
-    recordRouteBtn.disabled = !geojsonLoaded;
-    previewRouteBtn.disabled = !geojsonLoaded;
+    setRouteControls(geojsonLoaded, geojsonLoaded ? "ready" : "awaiting source");
     formatBtns.forEach((btn) => { btn.disabled = false; });
     presetBtns.forEach((btn) => { btn.disabled = false; });
-    if (hudStateEl) hudStateEl.textContent = geojsonLoaded ? "READY" : "STANDBY";
+    if (hudStateEl) hudStateEl.textContent = geojsonLoaded && systemCheck.ok ? "READY" : "STANDBY";
     if (hudRecLabelEl) hudRecLabelEl.textContent = "STANDBY";
   }
   return resultBlob;
@@ -1743,9 +1778,8 @@ function triggerDownload(blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const ext = extensionForMime(blob && blob.type);
   link.href = url;
-  link.download = `celebi-plug-${activePreset}-${timestamp}.${ext}`;
+  link.download = `celebi-plug-${activePreset}-${timestamp}.mp4`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -1911,6 +1945,11 @@ function exposeAgentApi() {
       hasMap: Boolean(map),
       geojsonLoaded,
       isRecording,
+      system: {
+        ok: systemCheck.ok,
+        message: systemCheck.message,
+        mimeType: systemCheck.mimeType,
+      },
       activePreset,
       activeAspect,
       center: shotMeta.center,

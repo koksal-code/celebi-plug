@@ -1,6 +1,6 @@
 ---
 name: celebi-plug
-description: Day-to-day rules for working on CelebiPlug — running the Flask studio, walking users through the Mapbox public-token onboarding, loading GeoJSON, editing cinematic Mapbox 3D drone-style camera presets, and exporting 36s/60s MP4/WebM videos from the browser. For first-time install, read install.md instead.
+description: Day-to-day rules for working on CelebiPlug — running the Flask studio, walking users through the Mapbox public-token onboarding, loading GeoJSON, editing cinematic Mapbox 3D drone-style camera presets, and exporting 36s/60s MP4 videos from a GUI browser. For first-time install, read install.md instead.
 ---
 
 # CelebiPlug Skill
@@ -24,7 +24,7 @@ When helping with CelebiPlug:
    - Render the GeoJSON: 3D extrusion for polygons (red), red line for line/polygon outlines, red circle for points.
    - Scan nearby OSM POIs via Overpass (3 endpoints with failover).
    - Pick aspect ratio (7 options), preset (5 options).
-   - Preview or record (`MediaRecorder` → MP4/H.264 on Chromium 134+ / Safari, WebM/VP9 fallback otherwise).
+   - Preview or record only after the local/WebGL/MP4 system check passes (`MediaRecorder` → MP4/H.264).
 
 3. **Presets are pure functions of `t ∈ [0, 1]`.** Each returns `{ center: [lng, lat], zoom, pitch, bearing }`. The Pilot preset may additionally return `{ fade, polygonOpacity }`.
 
@@ -92,14 +92,13 @@ The studio exposes two non-UI control surfaces so a browser-automation agent can
 
 Once the token is reachable, drive the studio through one of three control surfaces.
 
-### Local-only runtime
+### GUI runtime
 
-CelebiPlug is local GUI-browser only.
+CelebiPlug records only when the runtime has a GUI browser, GPU/WebGL, and MP4/H.264 support.
 
-- Require a local browser with WebGL/GPU support.
-- If GUI browser is not available, stop and report local-only requirement.
+- If GUI/GPU/MP4 checks fail, say exactly: `GPU/GUI yok, Çelebi uçuş yapamaz. Kurulumu iptal ediyorum; kurulumdan kalan dosyaları sileyim mi?`
 - Use `python3 app.py` + `http://127.0.0.1:5001`.
-- `/record` is disabled in this build.
+- Record through the studio, autopilot URL, or `window.celebiPlug.record()`.
 
 ### Deep-link URL params — useful when launching a fresh tab
 
@@ -123,7 +122,7 @@ POI behaviour (`poi=`):
 - `names:A,B` — select POIs whose name matches A or B (substring, case-insensitive).
 
 Trigger:
-- `autostart=1` — wait for tiles, then trigger record automatically; the file downloads through the browser (`.mp4` on Chromium 134+/Safari, `.webm` otherwise), no result modal.
+- `autostart=1` — wait for tiles, then trigger record automatically; the `.mp4` downloads through the local GUI browser, no result modal.
 
 Never put a Mapbox token in the **query string** (it would hit the server log). Only the `#token=` **hash fragment** form above is safe — browsers do not transmit hash fragments in HTTP requests.
 
@@ -140,15 +139,17 @@ Never put a Mapbox token in the **query string** (it would hit the server log). 
 7. Check local runtime prerequisites before starting:
    - GUI browser available (`chrome/chromium/firefox/safari` family)
    - WebGL/GPU-capable local machine
+   - MP4/H.264 MediaRecorder support
 8. If prerequisites are available, start local flow and run a simple health check (`GET /`).
-9. If prerequisites are not available, stop setup and return a short local-only requirement message.
-10. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local URL and basic usage in one short summary.
+9. If prerequisites are not available, stop setup and say exactly: `GPU/GUI yok, Çelebi uçuş yapamaz. Kurulumu iptal ediyorum; kurulumdan kalan dosyaları sileyim mi?`
+10. Delete install leftovers only after the user confirms cleanup. Do not delete without confirmation.
+11. In the final setup-complete message, print the exact plain ASCII banner below at the very top, then explain the local URL and basic usage in one short summary.
 
 **Operator UX contract** — the agent should feel transparent and talkative during execution:
 
 - On first setup, show the exact ASCII banner below only when setup is complete, at the very top of the final setup summary.
 - Between major steps (clone/docs/token/install/start/check/record), post a short status line in plain language.
-- During first setup, explicitly say local runtime decision (`local browser ready` or `local-only requirement not met`).
+- During first setup, explicitly say runtime decision (`GUI browser ready` or `GPU/GUI yok, Çelebi uçuş yapamaz. Kurulumu iptal ediyorum; kurulumdan kalan dosyaları sileyim mi?`).
 - Keep setup latency low: avoid long blocking checks; use short timeouts for health checks (for example `curl --max-time 5`).
 - Keep token talk minimal. In first install, ask for token once and continue.
 - Keep token output minimal and safe: report `token hazır`.
@@ -198,7 +199,7 @@ http://127.0.0.1:5001/?
  [#token=pk.XXX]   ← only on the first run per browser
 ```
 
-Open with `open "$URL"`, wait ~38–72s depending on mode, then `ls -t ~/Downloads/celebi-plug-* | head -1` (extension is `.mp4` or `.webm` depending on the browser).
+Open with `open "$URL"`, wait ~38–72s depending on mode, then `ls -t ~/Downloads/celebi-plug-*.mp4 | head -1`.
 
 If user asks for a **download link**, do not assume a public HTTP server already exists. First state one of:
 - direct transfer command (`scp`/`rsync`) as the default safe path, or
@@ -309,9 +310,9 @@ The browser-only pipeline:
 - Mapbox is created with `preserveDrawingBuffer: true` (required for `drawImage` from the WebGL canvas).
 - A 2D `recordCanvas` mirrors the Mapbox canvas each frame and composites the fade overlay on top.
 - The MediaRecorder stream is `recordCanvas.captureStream(30)`, not the Mapbox canvas directly. This is what makes fade-to-black transitions visible in the recorded output.
-- Local/browser flow probes MIME MP4-first so modern Chromium / Safari record straight to `.mp4`: `video/mp4;codecs=avc1.42E01F,mp4a.40.2` → `avc1,mp4a` → `avc1` → `mp4` → `webm;vp9,opus` → `vp9` → `vp8` → `webm`.
+- Local/browser flow probes MP4/H.264 only: `video/mp4;codecs=avc1.42E01F,mp4a.40.2` → `avc1,mp4a` → `avc1` → `mp4`. If none are supported, recording stays disabled.
 - `videoBitsPerSecond: 12_000_000`.
-- Output filename in local/browser flow: `celebi-plug-<preset>-<iso-timestamp>.<mp4|webm>`.
+- Output filename in local/browser flow: `celebi-plug-<preset>-<iso-timestamp>.mp4`.
 
 ## i18n
 

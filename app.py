@@ -1,10 +1,33 @@
 import os
+from ipaddress import ip_address, ip_network
 from pathlib import Path
 
-from flask import Flask, render_template
+from flask import Flask, abort, render_template, request
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+LOCAL_NETWORKS = (
+    ip_network("127.0.0.0/8"),
+    ip_network("::1/128"),
+)
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def is_local_request() -> bool:
+    """Allow only loopback browser requests."""
+    raw_host = (request.host or "").lower()
+    if raw_host.startswith("["):
+        host = raw_host.partition("]")[0].strip("[]")
+    else:
+        host = raw_host.split(":", 1)[0]
+    if host not in LOCAL_HOSTS:
+        return False
+    try:
+        remote = ip_address(request.remote_addr or "")
+    except ValueError:
+        return False
+    return any(remote in network for network in LOCAL_NETWORKS)
 
 
 def load_env_token() -> str:
@@ -40,6 +63,12 @@ def add_no_cache_headers(response):
     return response
 
 
+@app.before_request
+def guard_local_only():
+    if not is_local_request():
+        abort(403)
+
+
 @app.route("/")
 def index():
     return render_template("index.html", env_token=load_env_token())
@@ -48,13 +77,12 @@ def index():
 @app.route("/record")
 def record_disabled():
     return (
-        "local-only build: /record is disabled.\n"
-        "Use a local GUI browser at http://127.0.0.1:5001 and record in-studio.\n",
+        "server-side /record is disabled.\n"
+        "Use a same-machine GUI browser at http://127.0.0.1:5001; agents can record through the studio autopilot/API.\n",
         410,
     )
 
 
 if __name__ == "__main__":
-    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "5001"))
-    app.run(debug=os.environ.get("FLASK_DEBUG", "1") == "1", host=host, port=port)
+    app.run(debug=os.environ.get("FLASK_DEBUG", "1") == "1", host="127.0.0.1", port=port)
