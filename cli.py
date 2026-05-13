@@ -269,6 +269,7 @@ def cmd_film(args: argparse.Namespace) -> int:
         poi=args.poi,
         duration=args.duration,
         narrate=narrate,
+        lang=args.lang,
     )
     started = _time.time()
     launched = film_util.launch_browser(url)
@@ -428,6 +429,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_film.add_argument("--duration", type=int, help="seconds — override default 36/60")
     p_film.add_argument("--narrate", default="auto", help="auto (default) | <text> | off — TTS narration baked into MP4")
     p_film.add_argument("--no-narrate", dest="no_narrate", action="store_true", help="Disable narration")
+    p_film.add_argument("--lang", default="tr", choices=["tr", "de", "en"], help="Language for narration and TTS voice (default: tr)")
     p_film.add_argument("--wildfire", metavar="PLACE", help="Find nearest NASA FIRMS fire near PLACE and fly there with narration")
     p_film.add_argument("--geojson", metavar="FILE", help="GeoJSON file — extract centroid and film that location")
     p_film.add_argument("--base-url", default="http://127.0.0.1:5001")

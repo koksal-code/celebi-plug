@@ -17,7 +17,12 @@
   const narrateParam = params.get("narrate");
   if (!narrateParam) return; // dormant — keep studio behaviour unchanged.
 
-  const langParam = (params.get("lang") || "tr").toLowerCase();
+  // Priority: ?lang= URL param → localStorage (set by UI lang buttons) → "tr"
+  const langParam = (
+    params.get("lang") ||
+    localStorage.getItem("celebi-plug_lang") ||
+    "tr"
+  ).toLowerCase();
   let preparedBlobUrl = null;
   let preparedText = null;
   let audioContext = null;

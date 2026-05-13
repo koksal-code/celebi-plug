@@ -62,6 +62,7 @@ def build_autopilot_url(
     poi: str = "skip",
     duration: int | None = None,
     narrate: str | None = None,
+    lang: str = "tr",
 ) -> str:
     params: list[tuple[str, str]] = []
     if place:
@@ -76,6 +77,7 @@ def build_autopilot_url(
         params.append(("duration", str(duration)))
     if narrate:
         params.append(("narrate", narrate))
+        params.append(("lang", lang))
     return f"{base}?{urllib.parse.urlencode(params)}"
 
 
