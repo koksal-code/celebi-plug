@@ -3,10 +3,14 @@
 Bundles weather + nearby cameras + 24h wildfire/earthquake counts + a
 Mapbox satellite still of the location into a single payload the agent
 can summarise in one short paragraph.
+
+When ``with_news=True`` or ``with_aircraft=True`` the bundle is enriched
+with local headlines and overhead aircraft for a full daily briefing.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from utils.geocode import GeocodeError, geocode
@@ -14,11 +18,19 @@ from utils.staticmap import static_image, web_link
 
 from . import cameras as cameras_mod
 from . import earthquake as earthquake_mod
+from . import news as news_mod
 from . import weather as weather_mod
 from . import wildfire as wildfire_mod
 
 
-def snapshot(place: str, *, marine: bool = False, radius_km: float = 50.0) -> dict[str, Any]:
+def snapshot(
+    place: str,
+    *,
+    marine: bool = False,
+    radius_km: float = 50.0,
+    with_news: bool = False,
+    with_aircraft: bool = False,
+) -> dict[str, Any]:
     try:
         geo = geocode(place)
     except GeocodeError as exc:
@@ -50,23 +62,41 @@ def snapshot(place: str, *, marine: bool = False, radius_km: float = 50.0) -> di
 
     map_frame = static_image(lat, lon, zoom=12, width=720, height=480)
 
-    return {
+    bundle: dict[str, Any] = {
         "place": geo["name"],
         "lat": lat,
         "lon": lon,
         "weather": weather,
         "cameras": cams,
         "wildfires_nearby": len(wildfires),
+        "wildfires": wildfires[:5],
         "earthquakes_nearby": len(quakes_24h),
+        "earthquakes": quakes_24h[:3],
         "map": map_frame,
         "web_link": web_link(lat, lon),
     }
+
+    if with_news:
+        try:
+            headlines = news_mod.fetch(place, limit=5)
+            bundle["news"] = headlines
+        except Exception:  # noqa: BLE001
+            bundle["news"] = []
+
+    if with_aircraft:
+        try:
+            from . import aircraft as aircraft_mod
+            ac_payload = aircraft_mod.near_place(place, radius_km=radius_km)
+            bundle["aircraft"] = ac_payload.get("aircraft", [])
+        except Exception:  # noqa: BLE001
+            bundle["aircraft"] = []
+
+    return bundle
 
 
 def _within(a_lat, a_lon, b_lat, b_lon, max_km: float) -> bool:
     if None in (a_lat, a_lon, b_lat, b_lon):
         return False
-    import math
     r = 6371.0
     phi1, phi2 = math.radians(a_lat), math.radians(b_lat)
     d_phi = math.radians(b_lat - a_lat)

@@ -245,8 +245,6 @@ def cmd_film(args: argparse.Namespace) -> int:
             return 1
         lat, lon = hotspot["lat"], hotspot["lon"]
         place = place or wildfire_place
-        if not args.narrate:
-            args.narrate = "auto"
 
     # --geojson: extract centroid from GeoJSON file
     geojson_path = getattr(args, "geojson", None)
@@ -256,12 +254,9 @@ def cmd_film(args: argparse.Namespace) -> int:
             _print({"error": f"could not extract coordinates from {geojson_path}"})
             return 1
         lat, lon = center
-        if not args.narrate:
-            args.narrate = "auto"
 
-    narrate = None
-    if args.narrate:
-        narrate = "auto" if args.narrate == "auto" else args.narrate
+    narrate_val = args.narrate or "auto"
+    narrate = None if (getattr(args, "no_narrate", False) or narrate_val in ("off", "none", "false", "0", "")) else narrate_val
 
     url = film_util.build_autopilot_url(
         base,
@@ -431,7 +426,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_film.add_argument("--preset", default="showcase", choices=["showcase", "orbit", "reveal", "flyover", "top-down"])
     p_film.add_argument("--poi", default="skip", help="skip | auto | auto:N | names:A,B")
     p_film.add_argument("--duration", type=int, help="seconds — override default 36/60")
-    p_film.add_argument("--narrate", help="auto | <text> — TTS narration baked into MP4")
+    p_film.add_argument("--narrate", default="auto", help="auto (default) | <text> | off — TTS narration baked into MP4")
+    p_film.add_argument("--no-narrate", dest="no_narrate", action="store_true", help="Disable narration")
     p_film.add_argument("--wildfire", metavar="PLACE", help="Find nearest NASA FIRMS fire near PLACE and fly there with narration")
     p_film.add_argument("--geojson", metavar="FILE", help="GeoJSON file — extract centroid and film that location")
     p_film.add_argument("--base-url", default="http://127.0.0.1:5001")

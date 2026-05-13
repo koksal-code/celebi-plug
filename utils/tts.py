@@ -3,6 +3,9 @@
 * macOS — ``say -o file.aiff`` then ``afconvert`` → AAC in M4A container.
 * Linux — ``espeak-ng -w file.wav`` if available.
 
+Default voice is the best available **male** neural voice per language.
+Override with ``CELEBI_TTS_VOICE=<voice-name>`` environment variable.
+
 Output is a small audio file the browser can ``<audio>`` and pipe through
 Web Audio's ``MediaStreamDestination`` into MediaRecorder. No ffmpeg.
 """
@@ -35,29 +38,71 @@ def _engine() -> str | None:
     return None
 
 
-def _pick_voice(lang: str | None) -> str | None:
-    """Pick a sensible default voice for macOS ``say``."""
-    if not lang:
-        return None
-    lang = lang.lower()
-    if lang.startswith("tr"):
-        return "Yelda"
-    if lang.startswith("de"):
-        return "Anna"
-    if lang.startswith("en"):
-        return "Samantha"
-    return None
+# Male neural voices available on macOS Ventura+ (Sonoma preferred).
+# Turkish has no male system voice — Eddy (en_US neural) reads Turkish
+# with natural male quality; set CELEBI_TTS_VOICE=Yelda for native female.
+_MALE_NEURAL_VOICES: dict[str, str] = {
+    "tr": "Eddy (İngilizce (ABD))",    # Neural male — best quality for TR
+    "de": "Reed (Almanca (Almanya))",   # Neural male German
+    "en": "Eddy (İngilizce (ABD))",    # Neural male English
+}
+_FALLBACK_VOICES: dict[str, str] = {
+    "tr": "Yelda",      # Native Turkish (female) fallback
+    "de": "Markus",
+    "en": "Daniel",
+}
+
+# Slightly slower than default — neural voices sound best at ~155 wpm
+_DEFAULT_RATE = 155
 
 
-def synthesize(text: str, *, lang: str | None = "tr", rate: int = 180) -> TtsResult | None:
+def _pick_voice(lang: str | None) -> str:
+    """Return the best available male voice for *lang*."""
+    # Explicit env override takes priority
+    override = os.environ.get("CELEBI_TTS_VOICE", "").strip()
+    if override:
+        return override
+
+    lang_key = (lang or "en").lower()[:2]
+    preferred = _MALE_NEURAL_VOICES.get(lang_key, "Eddy (İngilizce (ABD))")
+
+    # Probe that the voice actually exists (quick dry-run)
+    if _voice_exists(preferred):
+        return preferred
+
+    fallback = _FALLBACK_VOICES.get(lang_key, "Daniel")
+    return fallback
+
+
+def _voice_exists(voice: str) -> bool:
+    """Return True if ``say -v <voice>`` exits 0 on a trivial string."""
+    try:
+        result = subprocess.run(
+            ["say", "-v", voice, "--output-file", "/dev/null", "test"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def synthesize(
+    text: str,
+    *,
+    lang: str | None = "tr",
+    rate: int | None = None,
+) -> TtsResult | None:
     text = (text or "").strip()
     if not text:
         return None
+    r = rate if rate is not None else _DEFAULT_RATE
     engine = _engine()
     if engine == "macos":
-        return _macos_say(text, lang=lang, rate=rate)
+        return _macos_say(text, lang=lang, rate=r)
     if engine == "linux":
-        return _linux_espeak(text, lang=lang, rate=rate)
+        return _linux_espeak(text, lang=lang, rate=r)
     return None
 
 
@@ -65,10 +110,7 @@ def _macos_say(text: str, *, lang: str | None, rate: int) -> TtsResult | None:
     voice = _pick_voice(lang)
     fd_aiff, aiff_path = tempfile.mkstemp(prefix="celebi-narr-", suffix=".aiff")
     os.close(fd_aiff)
-    cmd = ["say", "-o", aiff_path, "-r", str(rate)]
-    if voice:
-        cmd += ["-v", voice]
-    cmd += ["--", text]
+    cmd = ["say", "-o", aiff_path, "-r", str(rate), "-v", voice, "--", text]
     if subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
         Path(aiff_path).unlink(missing_ok=True)
         return None
